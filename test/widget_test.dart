@@ -1,30 +1,32 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:uniandes_food/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('Home shows the selected restaurant preview', (tester) async {
+    await tester.pumpWidget(const UniandesFoodApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('El Corral Uniandes'), findsWidgets);
+    expect(find.text('View full menu'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('QR scan verifies the visit and opens the review form', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const UniandesFoodApp());
+
+    await tester.tap(find.byIcon(Icons.qr_code_scanner_rounded));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Scan QR code'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 2300));
+    expect(find.text('Visit verified!'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pumpAndSettle();
+    expect(find.text('New review'), findsOneWidget);
+    expect(find.text('VERIFIED VISIT'), findsOneWidget);
   });
 }
