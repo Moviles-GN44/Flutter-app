@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/data/sample_restaurants.dart';
+import 'package:uniandes_food/explore_screen.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
 import 'package:uniandes_food/screens/home/home_screen.dart';
@@ -39,10 +40,7 @@ class _MainShellState extends State<MainShell> {
               selected: _selected,
               onSelect: (restaurant) => setState(() => _selected = restaurant),
             ),
-            const _SectionPlaceholder(
-              title: 'Explore',
-              icon: Icons.explore_outlined,
-            ),
+            const ExploreScreen(showBottomNav: false),
             const _SectionPlaceholder(
               title: 'Favorites',
               icon: Icons.favorite_border_rounded,
