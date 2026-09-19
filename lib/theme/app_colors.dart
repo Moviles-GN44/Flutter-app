@@ -15,6 +15,7 @@ abstract final class AppColors {
   static const border = Color(0xFFE5E7EB);
   static const disabled = Color(0xFF9CA3AF);
   static const placeholderIcon = Color(0xFF8C6E6E);
+  static const dietary = Color(0xFFE5484D);
 
   static const waitFast = Color(0xFF22C55E);
   static const waitFastTint = Color(0xFFDCFCE7);

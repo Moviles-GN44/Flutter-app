@@ -60,6 +60,16 @@ class StatusTag extends StatelessWidget {
     semanticLabel: 'Promotion available',
   );
 
+  /// Outlined tag used for dietary claims on menu items ("NUT-FREE", …).
+  factory StatusTag.dietary(String label) => StatusTag(
+    label: label.toUpperCase(),
+    icon: Icons.error_outline_rounded,
+    background: AppColors.white,
+    foreground: AppColors.dietary,
+    borderColor: AppColors.dietary.withValues(alpha: 0.5),
+    semanticLabel: '$label dish',
+  );
+
   factory StatusTag.verifiedVisit() => const StatusTag(
     label: 'VERIFIED VISIT',
     icon: Icons.verified_rounded,

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'package:uniandes_food/data/sample_restaurants.dart';
+import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
+
 class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key});
+  const FavoritesScreen({super.key, this.showBottomNav = true});
+
+  /// The shell provides its own bottom bar, so it hides this one.
+  final bool showBottomNav;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -70,9 +76,9 @@ class FavoritesScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _AppBottomNavigationBar(
-        selectedIndex: 3,
-      ),
+      bottomNavigationBar: showBottomNav
+          ? const _AppBottomNavigationBar(selectedIndex: 3)
+          : null,
     );
   }
 }
@@ -152,102 +158,107 @@ class _RestaurantCard extends StatelessWidget {
   final String name;
   final String imagePath;
 
-  const _RestaurantCard({
-    required this.name,
-    required this.imagePath,
-  });
+  const _RestaurantCard({required this.name, required this.imagePath});
+
+  void _openDetail(BuildContext context) {
+    final restaurant = restaurantByName(name);
+    if (restaurant == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 102,
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: FavoritesScreen.dividerColor,
-          width: 1,
+    return GestureDetector(
+      onTap: () => _openDetail(context),
+      child: Container(
+        height: 102,
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: FavoritesScreen.dividerColor, width: 1),
         ),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: SizedBox(
-              width: 70,
-              height: 80,
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (
-                  BuildContext context,
-                  Object error,
-                  StackTrace? stackTrace,
-                ) {
-                  return Container(
-                    color: const Color(0xFFF1F1F1),
-                    child: const Icon(
-                      Icons.restaurant_rounded,
-                      color: FavoritesScreen.secondaryText,
-                      size: 30,
-                    ),
-                  );
-                },
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 70,
+                height: 80,
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.cover,
+                  errorBuilder:
+                      (
+                        BuildContext context,
+                        Object error,
+                        StackTrace? stackTrace,
+                      ) {
+                        return Container(
+                          color: const Color(0xFFF1F1F1),
+                          child: const Icon(
+                            Icons.restaurant_rounded,
+                            color: FavoritesScreen.secondaryText,
+                            size: 30,
+                          ),
+                        );
+                      },
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(width: 11),
+            const SizedBox(width: 11),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: FavoritesScreen.primaryText,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FavoritesScreen.primaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-                const Row(
-                  children: [
-                    _WaitingTimeTag(),
-                    SizedBox(width: 6),
-                    _DietaryTag(),
-                  ],
-                ),
-              ],
+                  const Row(
+                    children: [
+                      _WaitingTimeTag(),
+                      SizedBox(width: 6),
+                      _DietaryTag(),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          const SizedBox(width: 5),
+            const SizedBox(width: 5),
 
-          IconButton(
-            onPressed: () {
-              // Remove from favorites functionality can be added later.
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(
-              minWidth: 32,
-              minHeight: 32,
+            IconButton(
+              onPressed: () {
+                // Remove from favorites functionality can be added later.
+              },
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              icon: const Icon(
+                Icons.favorite_border_rounded,
+                color: FavoritesScreen.coral,
+                size: 22,
+              ),
             ),
-            icon: const Icon(
-              Icons.favorite_border_rounded,
-              color: FavoritesScreen.coral,
-              size: 22,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -260,9 +271,7 @@ class _WaitingTimeTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 23,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: FavoritesScreen.primaryOrange,
         borderRadius: BorderRadius.circular(6),
@@ -299,16 +308,11 @@ class _DietaryTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 23,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 7),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: FavoritesScreen.coral,
-          width: 1,
-        ),
+        border: Border.all(color: FavoritesScreen.coral, width: 1),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
@@ -338,9 +342,7 @@ class _DietaryTag extends StatelessWidget {
 class _AppBottomNavigationBar extends StatelessWidget {
   final int selectedIndex;
 
-  const _AppBottomNavigationBar({
-    required this.selectedIndex,
-  });
+  const _AppBottomNavigationBar({required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -349,10 +351,7 @@ class _AppBottomNavigationBar extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: FavoritesScreen.dividerColor,
-            width: 1,
-          ),
+          top: BorderSide(color: FavoritesScreen.dividerColor, width: 1),
         ),
       ),
       child: SafeArea(
@@ -378,9 +377,7 @@ class _AppBottomNavigationBar extends StatelessWidget {
                   ),
                 ),
 
-                const Expanded(
-                  child: SizedBox(),
-                ),
+                const Expanded(child: SizedBox()),
 
                 Expanded(
                   child: _NavigationItem(
@@ -461,11 +458,7 @@ class _NavigationItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: itemColor,
-            ),
+            Icon(icon, size: 20, color: itemColor),
 
             const SizedBox(height: 2),
 
@@ -474,8 +467,7 @@ class _NavigationItem extends StatelessWidget {
               style: TextStyle(
                 color: itemColor,
                 fontSize: 9,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],

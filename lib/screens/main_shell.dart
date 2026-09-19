@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/explore_screen.dart';
+import 'package:uniandes_food/favorites_screen.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
+import 'package:uniandes_food/profile_screen.dart';
 import 'package:uniandes_food/screens/home/home_screen.dart';
 import 'package:uniandes_food/screens/review/scan_qr_screen.dart';
-import 'package:uniandes_food/theme/app_colors.dart';
-import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 
 class MainShell extends StatefulWidget {
@@ -41,14 +41,8 @@ class _MainShellState extends State<MainShell> {
               onSelect: (restaurant) => setState(() => _selected = restaurant),
             ),
             const ExploreScreen(showBottomNav: false),
-            const _SectionPlaceholder(
-              title: 'Favorites',
-              icon: Icons.favorite_border_rounded,
-            ),
-            const _SectionPlaceholder(
-              title: 'Profile',
-              icon: Icons.person_outline_rounded,
-            ),
+            const FavoritesScreen(showBottomNav: false),
+            const ProfileScreen(showBottomNav: false),
           ],
         ),
         floatingActionButton: ScanFab(onPressed: _openScanner),
@@ -56,29 +50,6 @@ class _MainShellState extends State<MainShell> {
         bottomNavigationBar: AppBottomNav(
           currentIndex: tab,
           onSelect: (index) => AppNavigation.tab.value = index,
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionPlaceholder extends StatelessWidget {
-  const _SectionPlaceholder({required this.title, required this.icon});
-
-  final String title;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: AppColors.textSecondary),
-            const SizedBox(height: 12),
-            Text(title, style: AppText.h2),
-          ],
         ),
       ),
     );

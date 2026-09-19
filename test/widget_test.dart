@@ -29,4 +29,31 @@ void main() {
     expect(find.text('New review'), findsOneWidget);
     expect(find.text('VERIFIED VISIT'), findsOneWidget);
   });
+
+  testWidgets('Restaurant detail switches between its three tabs', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const UniandesFoodApp());
+
+    await tester.tap(find.text('View full menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Corral Todo Terreno'), findsOneWidget);
+    expect(find.text(r'$24.900'), findsOneWidget);
+    expect(find.text('Accepted payment methods'), findsOneWidget);
+
+    await tester.tap(find.text('Info'));
+    await tester.pumpAndSettle();
+    expect(find.text('Information'), findsOneWidget);
+    expect(find.text('+57 300 555 0198'), findsOneWidget);
+
+    await tester.tap(find.text('Reviews'));
+    await tester.pumpAndSettle();
+    expect(find.text('187 Reviews'), findsOneWidget);
+    expect(find.text('Camila G.'), findsOneWidget);
+  });
 }

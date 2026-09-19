@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.showBottomNav = true});
+
+  /// The shell provides its own bottom bar, so it hides this one.
+  final bool showBottomNav;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -120,9 +123,9 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _AppBottomNavigationBar(
-        selectedIndex: 4,
-      ),
+      bottomNavigationBar: showBottomNav
+          ? const _AppBottomNavigationBar(selectedIndex: 4)
+          : null,
     );
   }
 }

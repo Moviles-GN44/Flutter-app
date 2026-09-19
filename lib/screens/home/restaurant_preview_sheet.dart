@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
@@ -64,7 +65,12 @@ class RestaurantPreviewSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton(
-                  onPressed: () {},
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          RestaurantDetailScreen(restaurant: restaurant),
+                    ),
+                  ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -176,9 +182,7 @@ class _CongestionNotice extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.waitSlowTint,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.waitSlow.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: AppColors.waitSlow.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [

@@ -29,6 +29,12 @@ class Restaurant {
     this.imageAsset,
     this.isVegan = false,
     this.hasPromo = false,
+    this.address = '',
+    this.schedule = '',
+    this.phone = '',
+    this.paymentMethods = const <String>[],
+    this.menu = const <MenuSection>[],
+    this.reviews = const <RestaurantReview>[],
   });
 
   final String id;
@@ -46,4 +52,49 @@ class Restaurant {
   final String? imageAsset;
   final bool isVegan;
   final bool hasPromo;
+  final String address;
+  final String schedule;
+  final String phone;
+  final List<String> paymentMethods;
+  final List<MenuSection> menu;
+  final List<RestaurantReview> reviews;
+}
+
+class MenuItem {
+  const MenuItem({
+    required this.name,
+    required this.description,
+    required this.priceCop,
+    required this.waitTime,
+    this.imageAsset,
+    this.hasPromo = false,
+    this.dietaryTags = const <String>[],
+  });
+
+  final String name;
+  final String description;
+  final int priceCop;
+  final WaitTime waitTime;
+  final String? imageAsset;
+  final bool hasPromo;
+  final List<String> dietaryTags;
+}
+
+class MenuSection {
+  const MenuSection({required this.title, required this.items});
+
+  final String title;
+  final List<MenuItem> items;
+}
+
+class RestaurantReview {
+  const RestaurantReview({
+    required this.author,
+    required this.comment,
+    this.verified = false,
+  });
+
+  final String author;
+  final String comment;
+  final bool verified;
 }
