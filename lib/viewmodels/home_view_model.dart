@@ -1,26 +1,34 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/repositories/restaurant_repository.dart';
 
 class HomeViewModel extends ChangeNotifier {
   HomeViewModel({
+    RestaurantRepository? repository,
     Restaurant? initialRestaurant,
-  }) : _selectedRestaurant =
-            initialRestaurant ?? sampleRestaurants.first;
+  }) : _repository = repository ?? const RestaurantRepository(),
+       _selectedRestaurant =
+           initialRestaurant ??
+           (repository ?? const RestaurantRepository())
+               .getAllRestaurants()
+               .first;
+
+  final RestaurantRepository _repository;
 
   Restaurant _selectedRestaurant;
 
   Restaurant get selectedRestaurant => _selectedRestaurant;
 
-  List<Restaurant> get restaurants => sampleRestaurants;
+  List<Restaurant> get restaurants =>
+      _repository.getAllRestaurants();
 
   Restaurant? get fasterAlternative {
     if (_selectedRestaurant.waitTime != WaitTime.over15) {
       return null;
     }
 
-    return fasterAlternativeTo(_selectedRestaurant);
+    return _repository.getFasterAlternative(_selectedRestaurant);
   }
 
   void selectRestaurant(Restaurant restaurant) {
