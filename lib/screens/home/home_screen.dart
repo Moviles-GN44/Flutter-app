@@ -1,29 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:uniandes_food/data/sample_restaurants.dart';
-import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/screens/home/campus_map.dart';
 import 'package:uniandes_food/screens/home/restaurant_preview_sheet.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
+import 'package:uniandes_food/viewmodels/home_view_model.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
-    required this.selected,
-    required this.onSelect,
+    required this.viewModel,
   });
 
-  final Restaurant selected;
-  final ValueChanged<Restaurant> onSelect;
+  final HomeViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
-    final alternative = selected.waitTime == WaitTime.over15
-        ? fasterAlternativeTo(selected)
-        : null;
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
       child: ColoredBox(
@@ -35,9 +28,9 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   Positioned.fill(
                     child: CampusMap(
-                      restaurants: sampleRestaurants,
-                      selected: selected,
-                      onSelect: onSelect,
+                      restaurants: viewModel.restaurants,
+                      selected: viewModel.selectedRestaurant,
+                      onSelect: viewModel.selectRestaurant,
                     ),
                   ),
                   const Positioned(
@@ -56,9 +49,9 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             RestaurantPreviewSheet(
-              restaurant: selected,
-              alternative: alternative,
-              onSelectAlternative: onSelect,
+              restaurant: viewModel.selectedRestaurant,
+              alternative: viewModel.fasterAlternative,
+              onSelectAlternative: viewModel.selectRestaurant,
             ),
           ],
         ),
@@ -117,7 +110,10 @@ class _SearchRow extends StatelessWidget {
           child: IconButton(
             onPressed: () {},
             tooltip: 'Filters',
-            icon: const Icon(Icons.tune_rounded, color: AppColors.shadowGrey),
+            icon: const Icon(
+              Icons.tune_rounded,
+              color: AppColors.shadowGrey,
+            ),
           ),
         ),
       ],
