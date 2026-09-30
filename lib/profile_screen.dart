@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, this.showBottomNav = true});
+  const ProfileScreen({super.key, this.showBottomNav = true, this.onLogout});
 
   /// The shell provides its own bottom bar, so it hides this one.
   final bool showBottomNav;
+  final VoidCallback? onLogout;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -94,9 +95,7 @@ class ProfileScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: () {
-                              // Logout functionality can be connected later.
-                            },
+                            onPressed: onLogout,
                             style: ElevatedButton.styleFrom(
                               elevation: 0,
                               backgroundColor: primaryOrange,

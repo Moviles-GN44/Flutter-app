@@ -31,7 +31,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
   void _openScanner() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => ScanQrScreen(restaurant: _restaurant),
+        builder: (_) => const ScanQrScreen(),
       ),
     );
   }

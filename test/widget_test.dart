@@ -1,33 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:uniandes_food/main.dart';
+import 'package:uniandes_food/models/app_user.dart';
+import 'package:uniandes_food/repositories/auth_repository.dart';
+import 'package:uniandes_food/screens/main_shell.dart';
+import 'package:uniandes_food/theme/app_theme.dart';
+import 'package:uniandes_food/viewmodels/auth_view_model.dart';
+
+class _SignedInAuthRepository implements AuthRepository {
+  @override
+  AppUser? get currentUser => const AppUser(
+    uid: 'test-user',
+    email: 'test@uniandes.edu.co',
+    name: 'Test User',
+  );
+
+  @override
+  Stream<AppUser?> authStateChanges() => const Stream.empty();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Widget _app() {
+  return MaterialApp(
+    theme: buildAppTheme(),
+    home: MainShell(
+      authViewModel: AuthViewModel(repository: _SignedInAuthRepository()),
+    ),
+  );
+}
 
 void main() {
   testWidgets('Home shows the selected restaurant preview', (tester) async {
-    await tester.pumpWidget(const UniandesFoodApp());
+    await tester.pumpWidget(_app());
 
     expect(find.text('El Corral Uniandes'), findsWidgets);
     expect(find.text('View full menu'), findsOneWidget);
   });
 
-  testWidgets('QR scan verifies the visit and opens the review form', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const UniandesFoodApp());
+  testWidgets('QR button opens the camera scanner', (tester) async {
+    await tester.pumpWidget(_app());
 
     await tester.tap(find.byIcon(Icons.qr_code_scanner_rounded));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+
     expect(find.text('Scan QR code'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 2300));
-    expect(find.text('Visit verified!'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 1500));
-    await tester.pumpAndSettle();
-    expect(find.text('New review'), findsOneWidget);
-    expect(find.text('VERIFIED VISIT'), findsOneWidget);
+    expect(find.text('Looking for a QR code…'), findsOneWidget);
   });
 
   testWidgets('Restaurant detail switches between its three tabs', (
@@ -37,7 +57,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const UniandesFoodApp());
+    await tester.pumpWidget(_app());
 
     await tester.tap(find.text('View full menu'));
     await tester.pumpAndSettle();

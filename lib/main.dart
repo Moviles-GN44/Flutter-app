@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/screens/main_shell.dart';
 import 'package:uniandes_food/theme/app_theme.dart';
+import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,8 +13,27 @@ Future<void> main() async {
   runApp(const UniandesFoodApp());
 }
 
-class UniandesFoodApp extends StatelessWidget {
+class UniandesFoodApp extends StatefulWidget {
   const UniandesFoodApp({super.key});
+
+  @override
+  State<UniandesFoodApp> createState() => _UniandesFoodAppState();
+}
+
+class _UniandesFoodAppState extends State<UniandesFoodApp> {
+  late final AuthViewModel _authViewModel;
+
+  @override
+  void initState() {
+    super.initState();
+    _authViewModel = AuthViewModel();
+  }
+
+  @override
+  void dispose() {
+    _authViewModel.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +41,7 @@ class UniandesFoodApp extends StatelessWidget {
       title: 'Uniandes Food',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const MainShell(),
+      home: MainShell(authViewModel: _authViewModel),
     );
   }
 }
