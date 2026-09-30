@@ -2,30 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
-import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
 import 'package:uniandes_food/screens/review/write_review_screen.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
+import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
 
-enum _ScanStatus { searching, verified }
-
 class ScanQrScreen extends StatefulWidget {
-  const ScanQrScreen({super.key, required this.restaurant});
-
-  final Restaurant restaurant;
+  const ScanQrScreen({super.key});
 
   @override
   State<ScanQrScreen> createState() => _ScanQrScreenState();
 }
 
 class _ScanQrScreenState extends State<ScanQrScreen>
-    with SingleTickerProviderStateMixin {
-  static const _detectDelay = Duration(milliseconds: 2600);
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const _openDelay = Duration(milliseconds: 1400);
 
   late final AnimationController _scanLine = AnimationController(
@@ -33,31 +29,59 @@ class _ScanQrScreenState extends State<ScanQrScreen>
     duration: const Duration(milliseconds: 1800),
   )..repeat(reverse: true);
 
-  Timer? _detectTimer;
+  final _viewModel = ScanQrViewModel();
+  final _scanner = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+
   Timer? _openTimer;
-  _ScanStatus _status = _ScanStatus.searching;
-  bool _torchOn = false;
 
   @override
   void initState() {
     super.initState();
-    _detectTimer = Timer(_detectDelay, _onCodeDetected);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
-    _detectTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _openTimer?.cancel();
     _scanLine.dispose();
+    _scanner.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
-  void _onCodeDetected() {
-    if (!mounted) return;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_viewModel.isVerified || !_scanner.value.hasCameraPermission) return;
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(_scanner.start());
+      case AppLifecycleState.inactive:
+        unawaited(_scanner.stop());
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        return;
+    }
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    final code = capture.barcodes.isEmpty
+        ? null
+        : capture.barcodes.first.rawValue;
+    if (!_viewModel.onCodeDetected(code)) return;
+
     HapticFeedback.mediumImpact();
     _scanLine.stop();
-    setState(() => _status = _ScanStatus.verified);
-    _openTimer = Timer(_openDelay, () => _openReview(widget.restaurant, true));
+    unawaited(_scanner.stop());
+    _openTimer = Timer(
+      _openDelay,
+      () => _openReview(_viewModel.restaurant!, true),
+    );
   }
 
   void _openReview(Restaurant restaurant, bool verified) {
@@ -71,24 +95,35 @@ class _ScanQrScreenState extends State<ScanQrScreen>
   }
 
   Future<void> _searchManually() async {
-    _detectTimer?.cancel();
+    await _scanner.stop();
+    if (!mounted) return;
+
     final picked = await showModalBottomSheet<Restaurant>(
       context: context,
       showDragHandle: true,
       backgroundColor: AppColors.white,
-      builder: (_) => const _NearbyRestaurantsSheet(),
+      builder: (_) =>
+          _NearbyRestaurantsSheet(restaurants: _viewModel.nearbyRestaurants),
     );
     if (!mounted) return;
+
     if (picked != null) {
       _openReview(picked, false);
-    } else if (_status == _ScanStatus.searching) {
-      _detectTimer = Timer(_detectDelay, _onCodeDetected);
+    } else {
+      unawaited(_scanner.start());
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final verified = _status == _ScanStatus.verified;
+    return ListenableBuilder(
+      listenable: _viewModel,
+      builder: (context, _) => _buildScreen(context),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
+    final verified = _viewModel.isVerified;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -124,7 +159,17 @@ class _ScanQrScreenState extends State<ScanQrScreen>
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _Viewfinder(scanLine: _scanLine, verified: verified),
+                  child: _Viewfinder(
+                    scanLine: _scanLine,
+                    verified: verified,
+                    camera: MobileScanner(
+                      controller: _scanner,
+                      onDetect: _onDetect,
+                      placeholderBuilder: (_) => const SizedBox.shrink(),
+                      errorBuilder: (_, error) =>
+                          _CameraUnavailable(error: error),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -133,15 +178,23 @@ class _ScanQrScreenState extends State<ScanQrScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _CameraControl(
-                      icon: _torchOn
-                          ? Icons.flashlight_on_rounded
-                          : Icons.flashlight_off_rounded,
-                      label: _torchOn ? 'Light on' : 'Light off',
-                      tooltip: _torchOn
-                          ? 'Turn flashlight off'
-                          : 'Turn flashlight on',
-                      onPressed: () => setState(() => _torchOn = !_torchOn),
+                    ValueListenableBuilder<MobileScannerState>(
+                      valueListenable: _scanner,
+                      builder: (context, state, _) {
+                        final torchOn = state.torchState == TorchState.on;
+                        return _CameraControl(
+                          icon: torchOn
+                              ? Icons.flashlight_on_rounded
+                              : Icons.flashlight_off_rounded,
+                          label: torchOn ? 'Light on' : 'Light off',
+                          tooltip: torchOn
+                              ? 'Turn flashlight off'
+                              : 'Turn flashlight on',
+                          onPressed: state.torchState == TorchState.unavailable
+                              ? null
+                              : _scanner.toggleTorch,
+                        );
+                      },
                     ),
                     _CameraControl(
                       icon: Icons.photo_library_outlined,
@@ -160,9 +213,12 @@ class _ScanQrScreenState extends State<ScanQrScreen>
                   child: verified
                       ? _VerifiedCard(
                           key: const ValueKey('verified'),
-                          restaurantName: widget.restaurant.name,
+                          restaurantName: _viewModel.restaurant!.name,
                         )
-                      : const _SearchingCard(key: ValueKey('searching')),
+                      : _SearchingCard(
+                          key: const ValueKey('searching'),
+                          errorMessage: _viewModel.errorMessage,
+                        ),
                 ),
               ),
               SizedBox(
@@ -195,10 +251,15 @@ class _ScanQrScreenState extends State<ScanQrScreen>
 }
 
 class _Viewfinder extends StatelessWidget {
-  const _Viewfinder({required this.scanLine, required this.verified});
+  const _Viewfinder({
+    required this.scanLine,
+    required this.verified,
+    required this.camera,
+  });
 
   final Animation<double> scanLine;
   final bool verified;
+  final Widget camera;
 
   static const _frameSize = 230.0;
 
@@ -223,6 +284,7 @@ class _Viewfinder extends StatelessWidget {
               const Positioned.fill(
                 child: CustomPaint(painter: _ViewfinderBackdropPainter()),
               ),
+              Positioned.fill(child: camera),
               Center(
                 child: SingleChildScrollView(
                   physics: const NeverScrollableScrollPhysics(),
@@ -310,7 +372,7 @@ class _CameraControl extends StatelessWidget {
   final IconData icon;
   final String label;
   final String tooltip;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -325,6 +387,8 @@ class _CameraControl extends StatelessWidget {
             minimumSize: const Size.square(48),
             foregroundColor: AppColors.white,
             backgroundColor: AppColors.white.withValues(alpha: 0.12),
+            disabledForegroundColor: AppColors.white.withValues(alpha: 0.38),
+            disabledBackgroundColor: AppColors.white.withValues(alpha: 0.06),
           ),
         ),
         const SizedBox(width: 8),
@@ -340,7 +404,9 @@ class _CameraControl extends StatelessWidget {
 }
 
 class _SearchingCard extends StatelessWidget {
-  const _SearchingCard({super.key});
+  const _SearchingCard({super.key, this.errorMessage});
+
+  final String? errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -374,9 +440,11 @@ class _SearchingCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Hold your phone about 20 cm from the code',
+                    errorMessage ?? 'Hold your phone about 20 cm from the code',
                     style: AppText.caption.copyWith(
-                      color: AppColors.white.withValues(alpha: 0.75),
+                      color: errorMessage == null
+                          ? AppColors.white.withValues(alpha: 0.75)
+                          : AppColors.amber,
                     ),
                   ),
                 ],
@@ -438,12 +506,50 @@ class _VerifiedCard extends StatelessWidget {
   }
 }
 
-class _NearbyRestaurantsSheet extends StatelessWidget {
-  const _NearbyRestaurantsSheet();
+class _CameraUnavailable extends StatelessWidget {
+  const _CameraUnavailable({required this.error});
+
+  final MobileScannerException error;
 
   @override
   Widget build(BuildContext context) {
-    final nearby = nearbyRestaurants();
+    final message = error.errorCode == MobileScannerErrorCode.permissionDenied
+        ? 'Allow camera access in Settings to scan the code.'
+        : 'The camera is not available on this device.';
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.no_photography_outlined,
+              size: 20,
+              color: AppColors.amber,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                message,
+                style: AppText.caption.copyWith(color: AppColors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NearbyRestaurantsSheet extends StatelessWidget {
+  const _NearbyRestaurantsSheet({required this.restaurants});
+
+  final List<Restaurant> restaurants;
+
+  @override
+  Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -458,7 +564,7 @@ class _NearbyRestaurantsSheet extends StatelessWidget {
               style: AppText.caption,
             ),
             const SizedBox(height: 8),
-            for (final restaurant in nearby)
+            for (final restaurant in restaurants)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 onTap: () => Navigator.of(context).pop(restaurant),

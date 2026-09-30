@@ -49,11 +49,7 @@ class _MainShellState extends State<MainShell> {
     }
 
     navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => ScanQrScreen(
-          restaurant: _homeViewModel.selectedRestaurant,
-        ),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const ScanQrScreen()),
     );
   }
 

@@ -39,23 +39,15 @@ void main() {
     expect(find.text('View full menu'), findsOneWidget);
   });
 
-  testWidgets('QR scan verifies the visit and opens the review form', (
-    tester,
-  ) async {
+  testWidgets('QR button opens the camera scanner', (tester) async {
     await tester.pumpWidget(_app());
 
     await tester.tap(find.byIcon(Icons.qr_code_scanner_rounded));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
+
     expect(find.text('Scan QR code'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 2300));
-    expect(find.text('Visit verified!'), findsOneWidget);
-
-    await tester.pump(const Duration(milliseconds: 1500));
-    await tester.pumpAndSettle();
-    expect(find.text('New review'), findsOneWidget);
-    expect(find.text('VERIFIED VISIT'), findsOneWidget);
+    expect(find.text('Looking for a QR code…'), findsOneWidget);
   });
 
   testWidgets('Restaurant detail switches between its three tabs', (
