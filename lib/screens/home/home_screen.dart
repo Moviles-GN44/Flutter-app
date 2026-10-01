@@ -30,7 +30,10 @@ class HomeScreen extends StatelessWidget {
                     child: CampusMap(
                       restaurants: viewModel.restaurants,
                       selected: viewModel.selectedRestaurant,
-                      onSelect: viewModel.selectRestaurant,
+                      onSelect: (restaurant) {
+                        viewModel.selectRestaurant(restaurant);
+                        viewModel.trackComparisonCriterion('distance');
+                      },
                     ),
                   ),
                   const Positioned(
@@ -52,6 +55,12 @@ class HomeScreen extends StatelessWidget {
               restaurant: viewModel.selectedRestaurant,
               alternative: viewModel.fasterAlternative,
               onSelectAlternative: viewModel.selectRestaurant,
+              onViewMenu: () {
+                viewModel.trackComparisonCriterion('menu');
+              },
+              onViewWaitingTimeAlternative: () {
+                viewModel.trackComparisonCriterion('waiting_time');
+              },
             ),
           ],
         ),
@@ -97,7 +106,9 @@ class _SearchRow extends StatelessWidget {
                   color: AppColors.shadowGrey,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 15,
+                ),
               ),
             ),
           ),

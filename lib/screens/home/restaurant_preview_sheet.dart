@@ -12,12 +12,16 @@ class RestaurantPreviewSheet extends StatelessWidget {
     super.key,
     required this.restaurant,
     required this.onSelectAlternative,
+    required this.onViewMenu,
+    required this.onViewWaitingTimeAlternative,
     this.alternative,
   });
 
   final Restaurant restaurant;
   final Restaurant? alternative;
   final ValueChanged<Restaurant> onSelectAlternative;
+  final VoidCallback onViewMenu;
+  final VoidCallback onViewWaitingTimeAlternative;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +61,10 @@ class RestaurantPreviewSheet extends StatelessWidget {
             const SizedBox(height: 16),
             _CongestionNotice(
               alternative: alternative!,
-              onShow: () => onSelectAlternative(alternative!),
+              onShow: () {
+                onViewWaitingTimeAlternative();
+                onSelectAlternative(alternative!);
+              },
             ),
           ],
           const SizedBox(height: 20),
@@ -65,12 +72,16 @@ class RestaurantPreviewSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          RestaurantDetailScreen(restaurant: restaurant),
-                    ),
-                  ),
+                  onPressed: () {
+                    onViewMenu();
+
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            RestaurantDetailScreen(restaurant: restaurant),
+                      ),
+                    );
+                  },
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -92,7 +103,10 @@ class RestaurantPreviewSheet extends StatelessWidget {
 }
 
 class _RestaurantSummary extends StatelessWidget {
-  const _RestaurantSummary({super.key, required this.restaurant});
+  const _RestaurantSummary({
+    super.key,
+    required this.restaurant,
+  });
 
   final Restaurant restaurant;
 
@@ -168,7 +182,10 @@ class _RestaurantSummary extends StatelessWidget {
 }
 
 class _CongestionNotice extends StatelessWidget {
-  const _CongestionNotice({required this.alternative, required this.onShow});
+  const _CongestionNotice({
+    required this.alternative,
+    required this.onShow,
+  });
 
   final Restaurant alternative;
   final VoidCallback onShow;
@@ -182,7 +199,9 @@ class _CongestionNotice extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.waitSlowTint,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.waitSlow.withValues(alpha: 0.35)),
+          border: Border.all(
+            color: AppColors.waitSlow.withValues(alpha: 0.35),
+          ),
         ),
         child: Row(
           children: [
@@ -214,7 +233,10 @@ class _CongestionNotice extends StatelessWidget {
                 ],
               ),
             ),
-            TextButton(onPressed: onShow, child: const Text('Show')),
+            TextButton(
+              onPressed: onShow,
+              child: const Text('Show'),
+            ),
           ],
         ),
       ),
@@ -240,11 +262,16 @@ class _SaveButtonState extends State<_SaveButton> {
         onPressed: () => setState(() => _saved = !_saved),
         tooltip: _saved ? 'Remove from favorites' : 'Save to favorites',
         icon: Icon(
-          _saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+          _saved
+              ? Icons.bookmark_rounded
+              : Icons.bookmark_border_rounded,
         ),
         style: IconButton.styleFrom(
           foregroundColor: AppColors.shadowGrey,
-          side: const BorderSide(color: AppColors.border, width: 1.5),
+          side: const BorderSide(
+            color: AppColors.border,
+            width: 1.5,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
