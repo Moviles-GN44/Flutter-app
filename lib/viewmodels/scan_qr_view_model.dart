@@ -10,13 +10,16 @@ class ScanQrViewModel extends ChangeNotifier {
     : _repository = repository ?? const RestaurantRepository();
 
   static const payloadPrefix = 'uniandesfood:';
+  static const darkLux = 15;
 
   final RestaurantRepository _repository;
 
   ScanStatus _status = ScanStatus.searching;
   Restaurant? _restaurant;
   String? _errorMessage;
+  bool _isDark = false;
 
+  bool get isDark => _isDark;
   ScanStatus get status => _status;
   bool get isVerified => _status == ScanStatus.verified;
   Restaurant? get restaurant => _restaurant;
@@ -39,6 +42,13 @@ class ScanQrViewModel extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     return true;
+  }
+
+  void onLightChanged(int lux) {
+    final isDark = lux >= 0 && lux < darkLux;
+    if (isDark == _isDark) return;
+    _isDark = isDark;
+    notifyListeners();
   }
 
   Restaurant? _restaurantFor(String rawValue) {

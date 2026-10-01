@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:light/light.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
@@ -36,16 +37,22 @@ class _ScanQrScreenState extends State<ScanQrScreen>
   );
 
   Timer? _openTimer;
+  StreamSubscription<int>? _lightSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _lightSubscription = Light().lightSensorStream.listen(
+      _viewModel.onLightChanged,
+      onError: (Object _) {},
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _lightSubscription?.cancel();
     _openTimer?.cancel();
     _scanLine.dispose();
     _scanner.dispose();
@@ -193,6 +200,7 @@ class _ScanQrScreenState extends State<ScanQrScreen>
                           onPressed: state.torchState == TorchState.unavailable
                               ? null
                               : _scanner.toggleTorch,
+                          highlighted: _viewModel.isDark && !torchOn,
                         );
                       },
                     ),
@@ -217,7 +225,11 @@ class _ScanQrScreenState extends State<ScanQrScreen>
                         )
                       : _SearchingCard(
                           key: const ValueKey('searching'),
-                          errorMessage: _viewModel.errorMessage,
+                          errorMessage:
+                              _viewModel.errorMessage ??
+                              (_viewModel.isDark
+                                  ? 'Low light detected. Turn on the flashlight.'
+                                  : null),
                         ),
                 ),
               ),
@@ -367,12 +379,14 @@ class _CameraControl extends StatelessWidget {
     required this.label,
     required this.tooltip,
     required this.onPressed,
+    this.highlighted = false,
   });
 
   final IconData icon;
   final String label;
   final String tooltip;
   final VoidCallback? onPressed;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -385,8 +399,12 @@ class _CameraControl extends StatelessWidget {
           icon: Icon(icon),
           style: IconButton.styleFrom(
             minimumSize: const Size.square(48),
-            foregroundColor: AppColors.white,
-            backgroundColor: AppColors.white.withValues(alpha: 0.12),
+            foregroundColor: highlighted
+                ? AppColors.shadowGrey
+                : AppColors.white,
+            backgroundColor: highlighted
+                ? AppColors.amber
+                : AppColors.white.withValues(alpha: 0.12),
             disabledForegroundColor: AppColors.white.withValues(alpha: 0.38),
             disabledBackgroundColor: AppColors.white.withValues(alpha: 0.06),
           ),
