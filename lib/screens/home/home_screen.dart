@@ -54,6 +54,8 @@ class HomeScreen extends StatelessWidget {
             RestaurantPreviewSheet(
               restaurant: viewModel.selectedRestaurant,
               alternative: viewModel.fasterAlternative,
+              reportedWait: viewModel.reportedWait,
+              reportCount: viewModel.reportCount,
               onSelectAlternative: viewModel.selectRestaurant,
               onViewMenu: () {
                 viewModel.trackComparisonCriterion('menu');
