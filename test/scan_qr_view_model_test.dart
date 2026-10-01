@@ -39,4 +39,17 @@ void main() {
     expect(viewModel.onCodeDetected('uniandesfood:wok'), isFalse);
     expect(viewModel.restaurant?.id, 'el-corral');
   });
+
+  test('Low light is detected and cleared by the light sensor', () {
+    final viewModel = ScanQrViewModel()..onLightChanged(5);
+    expect(viewModel.isDark, isTrue);
+
+    viewModel.onLightChanged(200);
+    expect(viewModel.isDark, isFalse);
+  });
+
+  test('Invalid light readings are ignored', () {
+    final viewModel = ScanQrViewModel()..onLightChanged(-1);
+    expect(viewModel.isDark, isFalse);
+  });
 }
