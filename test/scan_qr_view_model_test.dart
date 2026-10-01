@@ -5,15 +5,24 @@ import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
+import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
 import 'package:uniandes_food/viewmodels/write_review_view_model.dart';
 
 class _FakeReviewRepository implements ReviewRepository {
-  _FakeReviewRepository({this.confirmed = true, this.error});
+  _FakeReviewRepository({
+    this.confirmed = true,
+    this.error,
+    this.stored = const [],
+  });
 
   final bool confirmed;
   final ReviewException? error;
+  final List<Review> stored;
   Review? saved;
+
+  @override
+  Future<List<Review>> getReviews(String restaurantId) async => stored;
 
   @override
   Future<bool> addReview(Review review) async {
@@ -162,6 +171,47 @@ void main() {
       expect(await viewModel.publish(''), PublishOutcome.failed);
       expect(viewModel.errorMessage, 'Denied');
       expect(viewModel.isPublishing, isFalse);
+    });
+  });
+
+  group('Reported wait time', () {
+    Review report(WaitTime waitTime, {required bool verified}) => Review(
+      restaurantId: 'el-corral',
+      userId: 'test-user',
+      userName: 'Test User',
+      rating: 4,
+      comment: '',
+      waitTime: waitTime,
+      tags: const [],
+      verified: verified,
+      createdAt: DateTime.now(),
+    );
+
+    test('Verified recent reports weigh more', () async {
+      final viewModel = HomeViewModel(
+        reviewRepository: _FakeReviewRepository(
+          stored: [
+            report(WaitTime.over15, verified: true),
+            report(WaitTime.fiveTo15, verified: false),
+          ],
+        ),
+      );
+
+      await viewModel.loadReportedWait();
+
+      expect(viewModel.reportedWait, WaitTime.over15);
+      expect(viewModel.reportCount, 2);
+    });
+
+    test('Without reports there is no estimate', () async {
+      final viewModel = HomeViewModel(
+        reviewRepository: _FakeReviewRepository(),
+      );
+
+      await viewModel.loadReportedWait();
+
+      expect(viewModel.reportedWait, isNull);
+      expect(viewModel.reportCount, 0);
     });
   });
 }

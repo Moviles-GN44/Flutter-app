@@ -11,12 +11,28 @@ class ReviewException implements Exception {
 }
 
 class ReviewRepository {
-  ReviewRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  ReviewRepository({FirebaseFirestore? firestore}) : _injected = firestore;
 
   static const _serverTimeout = Duration(seconds: 8);
 
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore? _injected;
+
+  FirebaseFirestore get _firestore => _injected ?? FirebaseFirestore.instance;
+
+  Future<List<Review>> getReviews(String restaurantId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('restaurantId', isEqualTo: restaurantId)
+          .get();
+      return snapshot.docs.map((doc) {
+        final createdAt = doc.data()['createdAt'] as Timestamp?;
+        return Review.fromMap(doc.data(), createdAt: createdAt?.toDate());
+      }).toList();
+    } on FirebaseException {
+      return const [];
+    }
+  }
 
   Future<bool> addReview(Review review) async {
     try {

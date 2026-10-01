@@ -15,10 +15,14 @@ class RestaurantPreviewSheet extends StatelessWidget {
     required this.onViewMenu,
     required this.onViewWaitingTimeAlternative,
     this.alternative,
+    this.reportedWait,
+    this.reportCount = 0,
   });
 
   final Restaurant restaurant;
   final Restaurant? alternative;
+  final WaitTime? reportedWait;
+  final int reportCount;
   final ValueChanged<Restaurant> onSelectAlternative;
   final VoidCallback onViewMenu;
   final VoidCallback onViewWaitingTimeAlternative;
@@ -57,6 +61,26 @@ class RestaurantPreviewSheet extends StatelessWidget {
               restaurant: restaurant,
             ),
           ),
+          if (reportedWait != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(
+                  Icons.groups_rounded,
+                  size: 18,
+                  color: AppColors.tealDark,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Students report ${reportedWait!.shortLabel} now · '
+                    '$reportCount ${reportCount == 1 ? 'report' : 'reports'}',
+                    style: AppText.caption.copyWith(color: AppColors.tealText),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (alternative != null) ...[
             const SizedBox(height: 16),
             _CongestionNotice(

@@ -109,7 +109,22 @@ class Review {
     required this.waitTime,
     required this.tags,
     required this.verified,
+    this.createdAt,
   });
+
+  factory Review.fromMap(Map<String, dynamic> data, {DateTime? createdAt}) {
+    return Review(
+      restaurantId: data['restaurantId'] as String,
+      userId: data['userId'] as String,
+      userName: data['userName'] as String,
+      rating: data['rating'] as int,
+      comment: data['comment'] as String,
+      waitTime: WaitTime.values.byName(data['waitTime'] as String),
+      tags: List<String>.from(data['tags'] as List),
+      verified: data['verified'] as bool,
+      createdAt: createdAt,
+    );
+  }
 
   final String restaurantId;
   final String userId;
@@ -119,6 +134,7 @@ class Review {
   final WaitTime waitTime;
   final List<String> tags;
   final bool verified;
+  final DateTime? createdAt;
 
   Map<String, dynamic> toMap() {
     return {
