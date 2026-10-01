@@ -4,6 +4,7 @@ import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
+import 'package:uniandes_food/viewmodels/write_review_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/dashed_border_painter.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
@@ -25,27 +26,18 @@ class WriteReviewScreen extends StatefulWidget {
 }
 
 class _WriteReviewScreenState extends State<WriteReviewScreen> {
-  static const _tagOptions = [
-    'Good portion',
-    'Good price',
-    'Fast service',
-    'Nice atmosphere',
-    'Friendly staff',
-    'Healthy',
-  ];
+  late final _viewModel = WriteReviewViewModel(
+    restaurant: widget.restaurant,
+    verified: widget.verified,
+  );
 
   final _commentController = TextEditingController();
-  final Set<String> _tags = {};
-  int _rating = 0;
-  WaitTime? _wait;
   bool _hasPhoto = false;
-  bool _publishing = false;
-
-  bool get _canPublish => _rating > 0 && _wait != null && !_publishing;
 
   @override
   void dispose() {
     _commentController.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
@@ -92,25 +84,35 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 
   Future<void> _publish() async {
-    setState(() => _publishing = true);
+    FocusScope.of(context).unfocus();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+
+    final outcome = await _viewModel.publish(_commentController.text);
+    if (!mounted || outcome == PublishOutcome.failed) return;
+
     navigator.popUntil((route) => route.isFirst);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          _hasPhoto
-              ? 'Review published. Your photo is uploading in the background.'
-              : 'Review published. Thanks for helping other students!',
-        ),
-      ),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(_publishedMessage(outcome))));
+  }
+
+  String _publishedMessage(PublishOutcome outcome) {
+    if (outcome == PublishOutcome.savedOffline) {
+      return 'You are offline. Your review will be published when you reconnect.';
+    }
+    return _hasPhoto
+        ? 'Review published. Your photo is uploading in the background.'
+        : 'Review published. Thanks for helping other students!';
   }
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _viewModel,
+      builder: (context, _) => _buildScreen(context),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -130,8 +132,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _RatingPicker(
-                    rating: _rating,
-                    onChanged: (value) => setState(() => _rating = value),
+                    rating: _viewModel.rating,
+                    onChanged: _viewModel.setRating,
                   ),
                   const SizedBox(height: 28),
                   const Text('Your review', style: AppText.h3),
@@ -176,8 +178,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                             ),
                             child: _WaitOption(
                               wait: wait,
-                              selected: _wait == wait,
-                              onTap: () => setState(() => _wait = wait),
+                              selected: _viewModel.waitTime == wait,
+                              onTap: () => _viewModel.setWaitTime(wait),
                             ),
                           ),
                         ),
@@ -190,13 +192,11 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      for (final tag in _tagOptions)
+                      for (final tag in WriteReviewViewModel.tagOptions)
                         _TagChip(
                           label: tag,
-                          selected: _tags.contains(tag),
-                          onTap: () => setState(() {
-                            if (!_tags.remove(tag)) _tags.add(tag);
-                          }),
+                          selected: _viewModel.tags.contains(tag),
+                          onTap: () => _viewModel.toggleTag(tag),
                         ),
                     ],
                   ),
@@ -204,8 +204,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _canPublish ? _publish : null,
-                      child: _publishing
+                      onPressed: _viewModel.canPublish ? _publish : null,
+                      child: _viewModel.isPublishing
                           ? const SizedBox.square(
                               dimension: 22,
                               child: CircularProgressIndicator(
@@ -216,7 +216,19 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                           : const Text('Publish review'),
                     ),
                   ),
-                  if (!_canPublish && !_publishing)
+                  if (_viewModel.errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Center(
+                        child: Text(
+                          _viewModel.errorMessage!,
+                          style: AppText.caption.copyWith(
+                            color: AppColors.waitSlowText,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (!_viewModel.canPublish && !_viewModel.isPublishing)
                     const Padding(
                       padding: EdgeInsets.only(top: 10),
                       child: Center(

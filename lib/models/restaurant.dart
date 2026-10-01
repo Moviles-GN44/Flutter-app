@@ -98,3 +98,39 @@ class RestaurantReview {
   final String comment;
   final bool verified;
 }
+
+class Review {
+  const Review({
+    required this.restaurantId,
+    required this.userId,
+    required this.userName,
+    required this.rating,
+    required this.comment,
+    required this.waitTime,
+    required this.tags,
+    required this.verified,
+  });
+
+  final String restaurantId;
+  final String userId;
+  final String userName;
+  final int rating;
+  final String comment;
+  final WaitTime waitTime;
+  final List<String> tags;
+  final bool verified;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'restaurantId': restaurantId,
+      'userId': userId,
+      'userName': userName,
+      'rating': rating,
+      'comment': comment,
+      'waitTime': waitTime.name,
+      'tags': tags,
+      'verified': verified,
+      'platform': 'Flutter',
+    };
+  }
+}
