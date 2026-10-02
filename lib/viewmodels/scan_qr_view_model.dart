@@ -9,14 +9,18 @@ class ScanQrViewModel extends ChangeNotifier {
   ScanQrViewModel({RestaurantRepository? repository})
     : _repository = repository ?? const RestaurantRepository();
 
-  static const payloadPrefix = 'uniandesfood:';
+  static const darkLux = 15;
+  static final _restaurantId = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
 
   final RestaurantRepository _repository;
 
   ScanStatus _status = ScanStatus.searching;
   Restaurant? _restaurant;
   String? _errorMessage;
+  bool _isDark = false;
+  bool _isChecking = false;
 
+  bool get isDark => _isDark;
   ScanStatus get status => _status;
   bool get isVerified => _status == ScanStatus.verified;
   Restaurant? get restaurant => _restaurant;
@@ -24,10 +28,20 @@ class ScanQrViewModel extends ChangeNotifier {
 
   List<Restaurant> get nearbyRestaurants => _repository.getNearbyRestaurants();
 
-  bool onCodeDetected(String? rawValue) {
-    if (isVerified || rawValue == null) return false;
+  Future<bool> onCodeDetected(String? rawValue) async {
+    final id = rawValue?.trim() ?? '';
+    if (isVerified || _isChecking || id.isEmpty) return false;
 
-    final restaurant = _restaurantFor(rawValue);
+    Restaurant? restaurant;
+    if (_restaurantId.hasMatch(id)) {
+      _isChecking = true;
+      try {
+        restaurant = await _repository.fetchRestaurantById(id);
+      } finally {
+        _isChecking = false;
+      }
+    }
+
     if (restaurant == null) {
       _errorMessage = 'This QR code is not from a campus restaurant.';
       notifyListeners();
@@ -41,14 +55,10 @@ class ScanQrViewModel extends ChangeNotifier {
     return true;
   }
 
-  Restaurant? _restaurantFor(String rawValue) {
-    final value = rawValue.trim();
-    if (!value.startsWith(payloadPrefix)) return null;
-
-    final id = value.substring(payloadPrefix.length);
-    for (final restaurant in _repository.getAllRestaurants()) {
-      if (restaurant.id == id) return restaurant;
-    }
-    return null;
+  void onLightChanged(int lux) {
+    final isDark = lux >= 0 && lux < darkLux;
+    if (isDark == _isDark) return;
+    _isDark = isDark;
+    notifyListeners();
   }
 }

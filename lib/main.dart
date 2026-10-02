@@ -8,6 +8,7 @@ import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  //inicializa firebase
   await Firebase.initializeApp();
 
   runApp(const UniandesFoodApp());
@@ -41,7 +42,7 @@ class _UniandesFoodAppState extends State<UniandesFoodApp> {
       title: 'Uniandes Food',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: MainShell(authViewModel: _authViewModel),
+      home: MainShell(authViewModel: _authViewModel), // vista principal de la aplicación
     );
   }
 }
