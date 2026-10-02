@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+
+import 'package:uniandes_food/data/campus.dart';
+import 'package:uniandes_food/utils/currency.dart';
 
 enum WaitTime {
   under5('UNDER 5 MIN', '< 5 min', 'Wait time under 5 minutes'),
@@ -25,7 +29,7 @@ class Restaurant {
     required this.waitTime,
     required this.isOpen,
     required this.foodIcon,
-    required this.mapPosition,
+    required this.location,
     this.imageAsset,
     this.isVegan = false,
     this.hasPromo = false,
@@ -38,24 +42,79 @@ class Restaurant {
   });
 
   factory Restaurant.fromFirestore(String id, Map<String, dynamic> data) {
+    final category = data['category'] as String? ?? '';
+    final averagePrice = (data['averagePriceCOP'] as num?)?.toInt();
+    final latitude = (data['latitude'] as num?)?.toDouble();
+    final longitude = (data['longitude'] as num?)?.toDouble();
+    final location = latitude == null || longitude == null
+        ? null
+        : LatLng(latitude, longitude);
+    final walks = data['walkDistancesFromBuilding'];
+    final waitTime = switch (data['waitTimeCategory']) {
+      'FAST' => WaitTime.under5,
+      'LONG' => WaitTime.over15,
+      _ => WaitTime.fiveTo15,
+    };
+
     return Restaurant(
       id: id,
       name: data['name'] as String? ?? id,
-      category: data['category'] as String? ?? '',
-      priceRange: '',
-      distanceMeters: 0,
-      walkingMinutes: 0,
+      category: category,
+      priceRange: averagePrice == null ? '' : formatCop(averagePrice),
+      distanceMeters: location == null
+          ? 0
+          : _distance(defaultUserLocation, location).round(),
+      walkingMinutes: walks is Map
+          ? (walks[defaultUserBuilding] as num?)?.toInt() ?? 0
+          : 0,
       rating: (data['rating'] as num?)?.toDouble() ?? 0,
       reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
-      waitTime: switch (data['waitTimeCategory']) {
-        'FAST' => WaitTime.under5,
-        'LONG' => WaitTime.over15,
-        _ => WaitTime.fiveTo15,
-      },
+      waitTime: waitTime,
+      // Firestore has no opening hours yet.
       isOpen: true,
-      foodIcon: Icons.restaurant_outlined,
-      mapPosition: Offset.zero,
+      foodIcon: _iconFor(category),
+      location: location ?? campusCenter,
+      isVegan: data['isVeganFriendly'] as bool? ?? false,
+      paymentMethods: [
+        for (final method in data['paymentMethods'] as List? ?? const [])
+          '$method',
+      ],
+      menu: _menuFrom(data['menu'], waitTime),
     );
+  }
+
+  static const _distance = Distance();
+
+  static IconData _iconFor(String category) {
+    return switch (category) {
+      'Fast Food' => Icons.lunch_dining_outlined,
+      'Executive Lunch' => Icons.rice_bowl_outlined,
+      _ => Icons.restaurant_outlined,
+    };
+  }
+
+  static List<MenuSection> _menuFrom(Object? menu, WaitTime waitTime) {
+    if (menu is! List || menu.isEmpty) return const [];
+
+    return [
+      MenuSection(
+        title: 'Menu',
+        items: [
+          for (final dish in menu.whereType<Map>())
+            MenuItem(
+              name: dish['name'] as String? ?? '',
+              description: dish['description'] as String? ?? '',
+              priceCop: (dish['priceCOP'] as num?)?.toInt() ?? 0,
+              waitTime: waitTime,
+              dietaryTags: [
+                if (dish['isVegan'] == true) 'Vegan',
+                if (dish['isGlutenFree'] == true) 'Gluten-Free',
+                if (dish['isLactoseFree'] == true) 'Lactose-Free',
+              ],
+            ),
+        ],
+      ),
+    ];
   }
 
   final String id;
@@ -69,7 +128,7 @@ class Restaurant {
   final WaitTime waitTime;
   final bool isOpen;
   final IconData foodIcon;
-  final Offset mapPosition;
+  final LatLng location;
   final String? imageAsset;
   final bool isVegan;
   final bool hasPromo;

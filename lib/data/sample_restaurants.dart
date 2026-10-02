@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
+
 
 const sampleRestaurants = <Restaurant>[
   Restaurant(
@@ -15,7 +17,7 @@ const sampleRestaurants = <Restaurant>[
     waitTime: WaitTime.fiveTo15,
     isOpen: true,
     foodIcon: Icons.lunch_dining_outlined,
-    mapPosition: Offset(0.56, 0.43),
+    location: LatLng(4.6031, -74.0662),
     imageAsset: 'assets/images/el_corral.png',
     address: 'Cra 1 #18a-70, Bogotá, near Universidad de los Andes',
     schedule: 'Lun-Dom · 11:00am - 10:00pm',
@@ -90,7 +92,7 @@ const sampleRestaurants = <Restaurant>[
     waitTime: WaitTime.under5,
     isOpen: true,
     foodIcon: Icons.rice_bowl_outlined,
-    mapPosition: Offset(0.45, 0.56),
+    location: LatLng(4.6016, -74.0668),
     isVegan: true,
     address: 'Edificio Santo Domingo, Universidad de los Andes',
     schedule: 'Lun-Vie · 10:30am - 6:00pm',
@@ -136,7 +138,7 @@ const sampleRestaurants = <Restaurant>[
     waitTime: WaitTime.over15,
     isOpen: true,
     foodIcon: Icons.set_meal_outlined,
-    mapPosition: Offset(0.74, 0.50),
+    location: LatLng(4.6022, -74.0641),
     address: 'Cra 4 #18-30, Bogotá',
     schedule: 'Mar-Dom · 12:00pm - 9:30pm',
     phone: '+57 310 555 0177',
@@ -180,7 +182,7 @@ const sampleRestaurants = <Restaurant>[
     waitTime: WaitTime.fiveTo15,
     isOpen: true,
     foodIcon: Icons.ramen_dining_outlined,
-    mapPosition: Offset(0.33, 0.63),
+    location: LatLng(4.6009, -74.0657),
     hasPromo: true,
     address: 'Cra 3 #19-40, Bogotá',
     schedule: 'Lun-Sab · 11:30am - 9:00pm',
@@ -227,7 +229,7 @@ const sampleRestaurants = <Restaurant>[
     waitTime: WaitTime.under5,
     isOpen: false,
     foodIcon: Icons.bakery_dining_outlined,
-    mapPosition: Offset(0.64, 0.69),
+    location: LatLng(4.6040, -74.0652),
     address: 'Edificio Séneca, Universidad de los Andes',
     schedule: 'Lun-Vie · 7:00am - 4:00pm',
     phone: '+57 315 555 0123',
