@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 
 enum PublishOutcome { published, savedOffline, failed }
 
@@ -12,8 +15,12 @@ class WriteReviewViewModel extends ChangeNotifier {
     required this.verified,
     ReviewRepository? repository,
     AuthRepository? authRepository,
+    TelemetryService? telemetryService,
   }) : _repository = repository ?? ReviewRepository(),
-       _authRepository = authRepository ?? AuthRepository.instance;
+       _authRepository = authRepository ?? AuthRepository.instance,
+       _telemetryService = telemetryService ?? TelemetryService() {
+    _track('review_started');
+  }
 
   static const tagOptions = [
     'Good portion',
@@ -28,6 +35,7 @@ class WriteReviewViewModel extends ChangeNotifier {
   final bool verified;
   final ReviewRepository _repository;
   final AuthRepository _authRepository;
+  final TelemetryService _telemetryService;
 
   final Set<String> _tags = {};
   int _rating = 0;
@@ -84,6 +92,7 @@ class WriteReviewViewModel extends ChangeNotifier {
 
     try {
       final confirmed = await _repository.addReview(review);
+      _track('review_published');
       return confirmed ? PublishOutcome.published : PublishOutcome.savedOffline;
     } on ReviewException catch (error) {
       _errorMessage = error.message;
@@ -92,5 +101,15 @@ class WriteReviewViewModel extends ChangeNotifier {
       _isPublishing = false;
       notifyListeners();
     }
+  }
+
+  void _track(String eventName) {
+    unawaited(
+      _telemetryService.trackReviewEvent(
+        eventName: eventName,
+        method: verified ? 'qr' : 'manual',
+        restaurantId: restaurant.id,
+      ),
+    );
   }
 }
