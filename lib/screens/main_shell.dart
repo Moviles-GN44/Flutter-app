@@ -12,7 +12,7 @@ import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, required this.authViewModel});
+  const MainShell({super.key, required this.authViewModel}); //constructor
 
   final AuthViewModel authViewModel;
 
