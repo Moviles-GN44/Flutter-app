@@ -13,9 +13,11 @@ class HomeViewModel extends ChangeNotifier {
     TelemetryService? telemetryService,
     ReviewRepository? reviewRepository,
     Restaurant? initialRestaurant,
+    String? Function()? authenticatedUserId,
   }) : _repository = repository ?? const RestaurantRepository(),
        _telemetryService = telemetryService ?? TelemetryService(),
        _reviewRepository = reviewRepository ?? ReviewRepository(),
+       _authenticatedUserId = authenticatedUserId,
        _selectedRestaurant =
            initialRestaurant ??
            (repository ?? const RestaurantRepository())
@@ -38,6 +40,7 @@ class HomeViewModel extends ChangeNotifier {
   final RestaurantRepository _repository;
   final TelemetryService _telemetryService;
   final ReviewRepository _reviewRepository;
+  final String? Function()? _authenticatedUserId;
 
   Restaurant _selectedRestaurant;
   WaitTime? _reportedWait;
@@ -73,15 +76,19 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> loadReportedWait() async {
     final restaurantId = _selectedRestaurant.id;
     final reviews = await _reviewRepository.getReviews(restaurantId);
+
     if (restaurantId != _selectedRestaurant.id) return;
 
     final now = DateTime.now();
     var weightedMinutes = 0.0;
     var totalWeight = 0.0;
     var count = 0;
+
     for (final review in reviews) {
       final weight = _reportWeight(review, now);
+
       if (weight == 0) continue;
+
       weightedMinutes += _reportMinutes[review.waitTime]! * weight;
       totalWeight += weight;
       count++;
@@ -91,6 +98,7 @@ class HomeViewModel extends ChangeNotifier {
     _reportedWait = totalWeight == 0
         ? null
         : _waitTimeFor(weightedMinutes / totalWeight);
+
     notifyListeners();
   }
 
@@ -98,9 +106,11 @@ class HomeViewModel extends ChangeNotifier {
     final createdAt = review.createdAt ?? now;
     final age = now.difference(createdAt);
     final sameTimeOfDay = (createdAt.hour - now.hour).abs() <= 1;
+
     final recency = age.inMinutes <= 60
         ? 3.0
         : (age.inDays <= 14 && sameTimeOfDay ? 1.0 : 0.0);
+
     return review.verified ? recency * 2 : recency;
   }
 
@@ -120,6 +130,7 @@ class HomeViewModel extends ChangeNotifier {
     await _telemetryService.trackComparisonCriterion(
       criterion: criterion,
       restaurantId: _selectedRestaurant.id,
+      userId: _authenticatedUserId?.call(),
     );
   }
 }
