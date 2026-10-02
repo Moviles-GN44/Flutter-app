@@ -1,11 +1,29 @@
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-// Approximate coordinates of the Universidad de los Andes campus. They frame
-// the map and stand in for the user's position until GPS is wired up.
+
 const campusCenter = LatLng(4.6020, -74.0655);
 
-// Mario Laserna (ML), used as the default user location.
+
+const campusBuildings = <String, LatLng>{
+  'ML': LatLng(4.6029, -74.0650),
+  'SD': LatLng(4.6046, -74.0655),
+  'RGD': LatLng(4.6025, -74.0667),
+  'Franco': LatLng(4.6015, -74.0666),
+  'W': LatLng(4.6021, -74.0646),
+  'C': LatLng(4.6012, -74.0656),
+};
+
+const campusBuildingNames = <String, String>{
+  'ML': 'Mario Laserna (ML)',
+  'SD': 'Santo Domingo (SD)',
+  'RGD': 'RGD',
+  'Franco': 'Franco',
+  'W': 'Building W',
+  'C': 'Building C',
+};
+
+// Mario Laserna (ML), used as the user location when GPS is not available.
 const defaultUserBuilding = 'ML';
 const defaultUserLocation = LatLng(4.6029, -74.0650);
 
