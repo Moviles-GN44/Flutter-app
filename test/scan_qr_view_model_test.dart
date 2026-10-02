@@ -6,6 +6,7 @@ import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
 import 'package:uniandes_food/repositories/restaurant_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
 import 'package:uniandes_food/viewmodels/write_review_view_model.dart';
@@ -69,15 +70,32 @@ const _student = AppUser(
   name: 'Test User',
 );
 
+class _FakeTelemetryService implements TelemetryService {
+  final List<String> events = [];
+
+  @override
+  Future<void> trackReviewEvent({
+    required String eventName,
+    required String method,
+    required String restaurantId,
+  }) async => events.add('$eventName:$method');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 WriteReviewViewModel _reviewViewModel(
   ReviewRepository repository, {
   AppUser? user = _student,
+  bool verified = true,
+  TelemetryService? telemetry,
 }) {
   return WriteReviewViewModel(
     restaurant: sampleRestaurants.first,
-    verified: true,
+    verified: verified,
     repository: repository,
     authRepository: _FakeAuthRepository(user),
+    telemetryService: telemetry ?? _FakeTelemetryService(),
   );
 }
 
@@ -200,6 +218,26 @@ void main() {
       expect(await viewModel.publish(''), PublishOutcome.failed);
       expect(viewModel.errorMessage, 'Denied');
       expect(viewModel.isPublishing, isFalse);
+    });
+
+    test('Started and published reviews are tracked by method', () async {
+      final telemetry = _FakeTelemetryService();
+      final viewModel =
+          _reviewViewModel(
+              _FakeReviewRepository(),
+              verified: false,
+              telemetry: telemetry,
+            )
+            ..setRating(4)
+            ..setWaitTime(WaitTime.under5);
+      expect(telemetry.events, ['review_started:manual']);
+
+      await viewModel.publish('');
+
+      expect(telemetry.events, [
+        'review_started:manual',
+        'review_published:manual',
+      ]);
     });
   });
 

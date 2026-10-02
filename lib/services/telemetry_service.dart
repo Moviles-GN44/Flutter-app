@@ -30,4 +30,24 @@ class TelemetryService {
       return;
     }
   }
+
+  Future<void> trackReviewEvent({
+    required String eventName,
+    required String method,
+    required String restaurantId,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': eventName,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {'method': method, 'restaurantId': restaurantId},
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
 }
