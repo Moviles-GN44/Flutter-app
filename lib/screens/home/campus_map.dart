@@ -15,7 +15,6 @@ class CampusMap extends StatefulWidget {
     required this.onSelect,
   });
 
-
   final List<Restaurant> restaurants;
   final Restaurant selected;
   final ValueChanged<Restaurant> onSelect;
@@ -107,6 +106,8 @@ class _CampusMapState extends State<CampusMap> {
     final status = _viewModel.isLoading
         ? 'Loading restaurants…'
         : _viewModel.errorMessage;
+    final nearby = _viewModel.nearbyRestaurants;
+    final hasNearby = nearby.isNotEmpty;
 
     //flutter map es un widget que muestra mapas interactivos, viene de flutter_map
     //. Se configura un controller para controlar el mapa, y
@@ -140,6 +141,9 @@ class _CampusMapState extends State<CampusMap> {
                 child: _RestaurantPin(
                   restaurant: restaurant,
                   selected: restaurant.id == selected.id,
+                  // Fade what is far away only when something is close, so
+                  // the map never looks empty.
+                  dimmed: hasNearby && !_viewModel.isNearby(restaurant),
                   size: _pinSize,
                   onTap: () => widget.onSelect(restaurant),
                 ),
@@ -176,7 +180,15 @@ class _CampusMapState extends State<CampusMap> {
           ],
         ),
         //////const _MapAttribution(),
-        if (status != null) _MapStatus(message: status),
+        if (status != null)
+          _MapStatus(message: status)
+        else if (_viewModel.closestRestaurant case final closest?)
+          _NearbyBanner(
+            building: _viewModel.currentBuilding,
+            nearby: nearby,
+            closest: closest,
+            onTap: () => widget.onSelect(hasNearby ? nearby.first : closest),
+          ),
         _LocationControls(
           label: _viewModel.isUsingGps
               ? 'GPS'
@@ -203,12 +215,14 @@ class _RestaurantPin extends StatelessWidget {
   const _RestaurantPin({
     required this.restaurant,
     required this.selected,
+    required this.dimmed,
     required this.size,
     required this.onTap,
   });
 
   final Restaurant restaurant;
   final bool selected;
+  final bool dimmed;
   final double size;
   final VoidCallback onTap;
 
@@ -220,71 +234,80 @@ class _RestaurantPin extends StatelessWidget {
       selected: selected,
       label: '${restaurant.name}, ${restaurant.waitTime.spokenLabel}',
       excludeSemantics: true,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (selected) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.amber,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x291E232A),
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Text(
-                restaurant.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.tag.copyWith(
-                  fontSize: 12,
-                  color: AppColors.shadowGrey,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: dimmed && !selected ? 0.4 : 1,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (selected) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
                 ),
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: SizedBox.square(
-              dimension: size,
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  width: markerSize,
-                  height: markerSize,
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.amber : AppColors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selected ? AppColors.white : AppColors.shadowGrey,
-                      width: selected ? 3 : 1.5,
+                decoration: BoxDecoration(
+                  color: AppColors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x291E232A),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
                     ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x331E232A),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    restaurant.foodIcon,
-                    size: selected ? 22 : 18,
+                  ],
+                ),
+                child: Text(
+                  restaurant.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.tag.copyWith(
+                    fontSize: 12,
                     color: AppColors.shadowGrey,
                   ),
                 ),
               ),
+              const SizedBox(height: 6),
+            ],
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: SizedBox.square(
+                dimension: size,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    width: markerSize,
+                    height: markerSize,
+                    decoration: BoxDecoration(
+                      color: selected ? AppColors.amber : AppColors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected
+                            ? AppColors.white
+                            : AppColors.shadowGrey,
+                        width: selected ? 3 : 1.5,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x331E232A),
+                          blurRadius: 8,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      restaurant.foodIcon,
+                      size: selected ? 22 : 18,
+                      color: AppColors.shadowGrey,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -375,6 +398,110 @@ class _BuildingLocationMarker extends StatelessWidget {
           Icons.apartment_rounded,
           size: 16,
           color: AppColors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// Context-aware hint: says where the student is and what they can reach in a
+/// few minutes. It updates by itself as the GPS position changes.
+class _NearbyBanner extends StatelessWidget {
+  const _NearbyBanner({
+    required this.building,
+    required this.nearby,
+    required this.closest,
+    required this.onTap,
+  });
+
+  final String? building;
+  final List<Restaurant> nearby;
+  final Restaurant closest;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final where = building == null
+        ? 'Near you'
+        : 'Near ${campusBuildingNames[building] ?? building}';
+    final minutes = CampusMapViewModel.nearbyMinutes;
+    final detail = switch (nearby.length) {
+      0 =>
+        'Nothing under $minutes min · closest: ${closest.name}, '
+            '${closest.walkingMinutes} min',
+      1 => '1 restaurant under $minutes min: ${nearby.first.name}',
+      _ =>
+        '${nearby.length} restaurants under $minutes min · '
+            'closest: ${nearby.first.name}',
+    };
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          MediaQuery.paddingOf(context).top + 84,
+          16,
+          0,
+        ),
+        child: Semantics(
+          button: true,
+          label: '$where. $detail. Tap to see it',
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.tealTint,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.teal),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F1E232A),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.near_me_rounded,
+                    size: 18,
+                    color: AppColors.tealDark,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          where,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.tag.copyWith(
+                            fontSize: 13,
+                            color: AppColors.tealText,
+                          ),
+                        ),
+                        Text(
+                          detail,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.caption.copyWith(
+                            color: AppColors.shadowGrey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

@@ -55,6 +55,47 @@ class CampusMapViewModel extends ChangeNotifier {
   String get locationLabel => _locationStrategy.label;
   bool get isUsingGps => identical(_locationStrategy, _gpsStrategy);
 
+  // "Near you" means reachable on foot in this many minutes, and "in a
+  // building" means within this many meters of its entrance.
+  static const nearbyMinutes = 3;
+  static const _buildingRadiusMeters = 120.0;
+
+  /// The campus building the student is in or next to, or null when they are
+  /// between buildings. Follows the GPS as they walk.
+  String? get currentBuilding {
+    if (!isUsingGps) return _locationStrategy.label;
+
+    String? closest;
+    var closestMeters = double.infinity;
+    for (final entry in campusBuildings.entries) {
+      final meters = _distance(_userLocation, entry.value);
+      if (meters < closestMeters) {
+        closest = entry.key;
+        closestMeters = meters;
+      }
+    }
+    return closestMeters <= _buildingRadiusMeters ? closest : null;
+  }
+
+  /// Restaurants within [nearbyMinutes] of the student, closest first.
+  List<Restaurant> get nearbyRestaurants {
+    return [
+      for (final r in _restaurants)
+        if (r.walkingMinutes <= nearbyMinutes) r,
+    ]..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+  }
+
+  /// The restaurant closest to the student, nearby or not.
+  Restaurant? get closestRestaurant {
+    if (_restaurants.isEmpty) return null;
+    return _restaurants.reduce(
+      (a, b) => a.distanceMeters <= b.distanceMeters ? a : b,
+    );
+  }
+
+  bool isNearby(Restaurant restaurant) =>
+      restaurant.walkingMinutes <= nearbyMinutes;
+
   /// True when the map fell back to a building because the GPS failed, as
   /// opposed to the student picking the building themselves.
   bool get gpsUnavailable => _gpsUnavailable;
