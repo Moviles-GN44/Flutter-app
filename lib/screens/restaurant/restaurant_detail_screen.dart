@@ -10,6 +10,7 @@ import 'package:uniandes_food/utils/currency.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
 import 'package:uniandes_food/widgets/status_tag.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 
 enum _DetailTab { menu, info, reviews }
 
@@ -26,14 +27,32 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
   _DetailTab _tab = _DetailTab.menu;
   bool _favorite = false;
 
+  final TelemetryService _telemetryService = TelemetryService();
+
   Restaurant get _restaurant => widget.restaurant;
 
-  void _openScanner() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ScanQrScreen(),
-      ),
+  @override
+  void initState() {
+    super.initState();
+    _trackMenuCriteria();
+  }
+
+  void _trackMenuCriteria() {
+    _telemetryService.trackComparisonCriterion(
+      criterion: 'price',
+      restaurantId: _restaurant.id,
     );
+
+    _telemetryService.trackComparisonCriterion(
+      criterion: 'dietary_preferences',
+      restaurantId: _restaurant.id,
+    );
+  }
+
+  void _openScanner() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ScanQrScreen()));
   }
 
   void _writeReview() {
