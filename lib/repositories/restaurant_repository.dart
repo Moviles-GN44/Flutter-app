@@ -6,7 +6,7 @@ import 'package:uniandes_food/strategies/restaurant_recommendation_strategy.dart
 
 class RestaurantRepository {
   const RestaurantRepository({
-    this.recommendationStrategy = const FasterRestaurantStrategy(),
+    this.recommendationStrategy = const SmartRestaurantStrategy(),
   });
 
   final RestaurantRecommendationStrategy recommendationStrategy;
@@ -41,9 +41,7 @@ class RestaurantRepository {
 
       final data = doc.data();
 
-      return data == null
-          ? null
-          : Restaurant.fromFirestore(doc.id, data);
+      return data == null ? null : Restaurant.fromFirestore(doc.id, data);
     } on FirebaseException {
       return null;
     }
