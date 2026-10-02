@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
@@ -7,7 +10,6 @@ import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/write_review_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/dashed_border_painter.dart';
-import 'package:uniandes_food/widgets/food_image_placeholder.dart';
 import 'package:uniandes_food/widgets/status_tag.dart';
 import 'package:uniandes_food/widgets/wait_time_style.dart';
 
@@ -32,7 +34,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   );
 
   final _commentController = TextEditingController();
-  bool _hasPhoto = false;
+  final _imagePicker = ImagePicker();
+  XFile? _selectedPhoto;
 
   @override
   void dispose() {
@@ -42,7 +45,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final picked = await showModalBottomSheet<bool>(
+    final source = await showModalBottomSheet<ImageSource>(
       context: context,
       showDragHandle: true,
       backgroundColor: AppColors.white,
@@ -55,12 +58,17 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 Icons.photo_camera_outlined,
                 color: AppColors.shadowGrey,
               ),
-              title: const Text('Take a photo', style: AppText.bodyStrong),
+              title: const Text(
+                'Take a photo',
+                style: AppText.bodyStrong,
+              ),
               subtitle: const Text(
-                'A square guide helps you frame the dish',
+                'Use your camera to photograph the dish',
                 style: AppText.caption,
               ),
-              onTap: () => Navigator.of(context).pop(true),
+              onTap: () {
+                Navigator.of(context).pop(ImageSource.camera);
+              },
             ),
             ListTile(
               leading: const Icon(
@@ -71,15 +79,41 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                 'Choose from gallery',
                 style: AppText.bodyStrong,
               ),
-              onTap: () => Navigator.of(context).pop(true),
+              onTap: () {
+                Navigator.of(context).pop(ImageSource.gallery);
+              },
             ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
-    if (picked == true && mounted) {
-      setState(() => _hasPhoto = true);
+
+    if (source == null) return;
+
+    try {
+      final photo = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1080,
+        maxHeight: 1080,
+      );
+
+      if (photo == null || !mounted) return;
+
+      setState(() {
+        _selectedPhoto = photo;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not access the camera or photo library.',
+          ),
+        ),
+      );
     }
   }
 
@@ -92,15 +126,18 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     if (!mounted || outcome == PublishOutcome.failed) return;
 
     navigator.popUntil((route) => route.isFirst);
-    messenger.showSnackBar(SnackBar(content: Text(_publishedMessage(outcome))));
+    messenger.showSnackBar(
+      SnackBar(content: Text(_publishedMessage(outcome))),
+    );
   }
 
   String _publishedMessage(PublishOutcome outcome) {
     if (outcome == PublishOutcome.savedOffline) {
       return 'You are offline. Your review will be published when you reconnect.';
     }
-    return _hasPhoto
-        ? 'Review published. Your photo is uploading in the background.'
+
+    return _selectedPhoto != null
+        ? 'Review published with a dish photo.'
         : 'Review published. Thanks for helping other students!';
   }
 
@@ -154,16 +191,20 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
                   const SizedBox(height: 10),
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
-                    child: _hasPhoto
+                    child: _selectedPhoto != null
                         ? _AttachedPhoto(
                             key: const ValueKey('attached'),
-                            icon: widget.restaurant.foodIcon,
-                            onRemove: () => setState(() => _hasPhoto = false),
+                            photo: _selectedPhoto!,
+                            onRemove: () {
+                              setState(() {
+                                _selectedPhoto = null;
+                              });
+                            },
                           )
-                        : _PhotoDropZone(
-                            key: const ValueKey('empty'),
-                            onTap: _pickPhoto,
-                          ),
+    : _PhotoDropZone(
+        key: const ValueKey('empty'),
+        onTap: _pickPhoto,
+      ),
                   ),
                   const SizedBox(height: 28),
                   const Text('How long did you wait?', style: AppText.h3),
@@ -456,9 +497,13 @@ class _PhotoDropZone extends StatelessWidget {
 }
 
 class _AttachedPhoto extends StatelessWidget {
-  const _AttachedPhoto({super.key, required this.icon, required this.onRemove});
+  const _AttachedPhoto({
+    super.key,
+    required this.photo,
+    required this.onRemove,
+  });
 
-  final IconData icon;
+  final XFile photo;
   final VoidCallback onRemove;
 
   @override
@@ -471,12 +516,13 @@ class _AttachedPhoto extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 72,
-            child: FoodImagePlaceholder(
-              icon: icon,
-              aspectRatio: 1,
-              iconSize: 28,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(photo.path),
+              width: 72,
+              height: 72,
+              fit: BoxFit.cover,
             ),
           ),
           const SizedBox(width: 12),
@@ -484,11 +530,13 @@ class _AttachedPhoto extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Photo added', style: AppText.bodyStrong),
+                Text(
+                  'Photo added',
+                  style: AppText.bodyStrong,
+                ),
                 SizedBox(height: 2),
                 Text(
-                  'It will be resized to 1080 × 1080 and uploaded in the '
-                  'background.',
+                  'Your dish photo is ready to be included with the review.',
                   style: AppText.caption,
                 ),
               ],
@@ -497,7 +545,10 @@ class _AttachedPhoto extends StatelessWidget {
           IconButton(
             onPressed: onRemove,
             tooltip: 'Remove photo',
-            icon: const Icon(Icons.close_rounded, color: AppColors.shadowGrey),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: AppColors.shadowGrey,
+            ),
           ),
         ],
       ),
