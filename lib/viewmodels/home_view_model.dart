@@ -50,13 +50,21 @@ class HomeViewModel extends ChangeNotifier {
   List<Restaurant> get restaurants =>
       _repository.getAllRestaurants();
 
+ WaitTime get currentWaitContext =>
+    _reportedWait ?? _selectedRestaurant.waitTime;
+
+bool get hasHighWaitContext =>
+    currentWaitContext == WaitTime.over15;
+
   Restaurant? get fasterAlternative {
-    if (_selectedRestaurant.waitTime != WaitTime.over15) {
+    if (!hasHighWaitContext) {
       return null;
     }
 
     return _repository.getFasterAlternative(_selectedRestaurant);
   }
+
+ 
 
   void selectRestaurant(Restaurant restaurant) {
     if (_selectedRestaurant.id == restaurant.id) {
