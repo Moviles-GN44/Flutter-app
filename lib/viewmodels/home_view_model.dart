@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
@@ -20,7 +22,12 @@ class HomeViewModel extends ChangeNotifier {
                .getAllRestaurants()
                .first {
     loadReportedWait();
+    _reviewSubscription = ReviewRepository.published.listen((restaurantId) {
+      if (restaurantId == _selectedRestaurant.id) loadReportedWait();
+    });
   }
+
+  late final StreamSubscription<String> _reviewSubscription;
 
   static const _reportMinutes = {
     WaitTime.under5: 3,
@@ -101,6 +108,12 @@ class HomeViewModel extends ChangeNotifier {
     if (minutes < 5) return WaitTime.under5;
     if (minutes <= 15) return WaitTime.fiveTo15;
     return WaitTime.over15;
+  }
+
+  @override
+  void dispose() {
+    _reviewSubscription.cancel();
+    super.dispose();
   }
 
   Future<void> trackComparisonCriterion(String criterion) async {

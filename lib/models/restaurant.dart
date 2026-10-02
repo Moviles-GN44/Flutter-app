@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 enum WaitTime {
   under5('UNDER 5 MIN', '< 5 min', 'Wait time under 5 minutes'),
@@ -36,6 +36,27 @@ class Restaurant {
     this.menu = const <MenuSection>[],
     this.reviews = const <RestaurantReview>[],
   });
+
+  factory Restaurant.fromFirestore(String id, Map<String, dynamic> data) {
+    return Restaurant(
+      id: id,
+      name: data['name'] as String? ?? id,
+      category: data['category'] as String? ?? '',
+      priceRange: '',
+      distanceMeters: 0,
+      walkingMinutes: 0,
+      rating: (data['rating'] as num?)?.toDouble() ?? 0,
+      reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
+      waitTime: switch (data['waitTimeCategory']) {
+        'FAST' => WaitTime.under5,
+        'LONG' => WaitTime.over15,
+        _ => WaitTime.fiveTo15,
+      },
+      isOpen: true,
+      foodIcon: Icons.restaurant_outlined,
+      mapPosition: Offset.zero,
+    );
+  }
 
   final String id;
   final String name;
