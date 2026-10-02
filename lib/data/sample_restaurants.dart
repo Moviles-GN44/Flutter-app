@@ -265,18 +265,56 @@ const sampleRestaurants = <Restaurant>[
 ];
 
 Restaurant? fasterAlternativeTo(Restaurant restaurant) {
-  final candidates =
-      sampleRestaurants
-          .where(
-            (r) =>
-                r.id != restaurant.id &&
-                r.isOpen &&
-                r.waitTime == WaitTime.under5,
-          )
-          .toList()
-        ..sort((a, b) => a.walkingMinutes.compareTo(b.walkingMinutes));
-  return candidates.isEmpty ? null : candidates.first;
+  final candidates = sampleRestaurants
+      .where((r) => r.id != restaurant.id && r.isOpen)
+      .toList();
+
+  if (candidates.isEmpty) return null;
+
+  candidates.sort(
+    (a, b) => _smartAlternativeScore(b)
+        .compareTo(_smartAlternativeScore(a)),
+  );
+
+  return candidates.first;
 }
+
+  double _smartAlternativeScore(Restaurant restaurant) {
+    final waitScore = switch (restaurant.waitTime) {
+      WaitTime.under5 => 1.0,
+      WaitTime.fiveTo15 => 0.5,
+      WaitTime.over15 => 0.0,
+    };
+
+    final distanceScore =
+        (1 - (restaurant.walkingMinutes / 15)).clamp(0.0, 1.0);
+
+    final ratingScore =
+        (restaurant.rating / 5).clamp(0.0, 1.0);
+
+    final averagePrice = _averageMenuPrice(restaurant);
+
+    final priceScore = averagePrice == 0
+        ? 0.5
+        : (1 - (averagePrice / 50000)).clamp(0.0, 1.0);
+
+    return (waitScore * 0.40) +
+        (distanceScore * 0.25) +
+        (ratingScore * 0.20) +
+        (priceScore * 0.15);
+  }
+
+  double _averageMenuPrice(Restaurant restaurant) {
+    final prices = restaurant.menu
+        .expand((section) => section.items)
+        .map((item) => item.priceCop)
+        .where((price) => price > 0)
+        .toList();
+
+    if (prices.isEmpty) return 0;
+
+    return prices.reduce((a, b) => a + b) / prices.length;
+  }
 
 List<Restaurant> nearbyRestaurants({int limit = 4}) {
   final sorted = [...sampleRestaurants]
