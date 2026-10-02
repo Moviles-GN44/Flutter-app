@@ -12,7 +12,10 @@ import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 
 class MainShell extends StatefulWidget {
-  const MainShell({super.key, required this.authViewModel}); //constructor
+  const MainShell({
+    super.key,
+    required this.authViewModel,
+  });
 
   final AuthViewModel authViewModel;
 
@@ -26,7 +29,10 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    _homeViewModel = HomeViewModel();
+
+    _homeViewModel = HomeViewModel(
+      authenticatedUserId: () => widget.authViewModel.currentUser?.uid,
+    );
   }
 
   @override
@@ -41,15 +47,22 @@ class _MainShellState extends State<MainShell> {
 
     if (!auth.isAuthenticated) {
       auth.clearError();
+
       await navigator.push(
-        MaterialPageRoute<void>(builder: (_) => LoginScreen(viewModel: auth)),
+        MaterialPageRoute<void>(
+          builder: (_) => LoginScreen(viewModel: auth),
+        ),
       );
+
       auth.clearError();
+
       if (!auth.isAuthenticated) return;
     }
 
     navigator.push(
-      MaterialPageRoute<void>(builder: (_) => const ScanQrScreen()),
+      MaterialPageRoute<void>(
+        builder: (_) => const ScanQrScreen(),
+      ),
     );
   }
 
@@ -69,21 +82,28 @@ class _MainShellState extends State<MainShell> {
                 const FavoritesScreen(showBottomNav: false),
                 ListenableBuilder(
                   listenable: widget.authViewModel,
-                  builder: (context, _) => widget.authViewModel.isAuthenticated
-                      ? ProfileScreen(
-                          showBottomNav: false,
-                          onLogout: widget.authViewModel.signOut,
-                        )
-                      : LoginScreen(viewModel: widget.authViewModel),
+                  builder: (context, _) =>
+                      widget.authViewModel.isAuthenticated
+                          ? ProfileScreen(
+                              showBottomNav: false,
+                              onLogout: widget.authViewModel.signOut,
+                            )
+                          : LoginScreen(
+                              viewModel: widget.authViewModel,
+                            ),
                 ),
               ],
             ),
-            floatingActionButton: ScanFab(onPressed: _openScanner),
+            floatingActionButton: ScanFab(
+              onPressed: _openScanner,
+            ),
             floatingActionButtonLocation:
                 FloatingActionButtonLocation.centerDocked,
             bottomNavigationBar: AppBottomNav(
               currentIndex: tab,
-              onSelect: (index) => AppNavigation.tab.value = index,
+              onSelect: (index) {
+                AppNavigation.tab.value = index;
+              },
             ),
           ),
         );
