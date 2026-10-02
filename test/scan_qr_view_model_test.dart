@@ -4,6 +4,7 @@ import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
+import 'package:uniandes_food/repositories/restaurant_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
 import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
@@ -31,6 +32,26 @@ class _FakeReviewRepository implements ReviewRepository {
     return confirmed;
   }
 }
+
+class _FakeRestaurantRepository implements RestaurantRepository {
+  @override
+  Future<Restaurant?> fetchRestaurantById(String id) async {
+    if (id != 'el_toro_rgd') return null;
+    return Restaurant.fromFirestore(id, const {
+      'name': 'El Toro - RGD',
+      'category': 'Executive Lunch',
+      'rating': 4.5,
+      'reviewCount': 2,
+      'waitTimeCategory': 'LONG',
+    });
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+ScanQrViewModel _scanViewModel() =>
+    ScanQrViewModel(repository: _FakeRestaurantRepository());
 
 class _FakeAuthRepository implements AuthRepository {
   _FakeAuthRepository(this.currentUser);
@@ -61,21 +82,22 @@ WriteReviewViewModel _reviewViewModel(
 }
 
 void main() {
-  test('A restaurant QR code verifies the visit', () {
-    final viewModel = ScanQrViewModel();
+  test('A restaurant QR code verifies the visit', () async {
+    final viewModel = _scanViewModel();
 
-    final verified = viewModel.onCodeDetected('uniandesfood:el-corral');
+    final verified = await viewModel.onCodeDetected('el_toro_rgd');
 
     expect(verified, isTrue);
     expect(viewModel.status, ScanStatus.verified);
-    expect(viewModel.restaurant?.name, 'El Corral Uniandes');
+    expect(viewModel.restaurant?.name, 'El Toro - RGD');
+    expect(viewModel.restaurant?.waitTime, WaitTime.over15);
     expect(viewModel.errorMessage, isNull);
   });
 
-  test('A QR code from outside the app is rejected', () {
-    final viewModel = ScanQrViewModel();
+  test('A QR code from outside the app is rejected', () async {
+    final viewModel = _scanViewModel();
 
-    final verified = viewModel.onCodeDetected('https://example.com');
+    final verified = await viewModel.onCodeDetected('https://example.com');
 
     expect(verified, isFalse);
     expect(viewModel.status, ScanStatus.searching);
@@ -83,19 +105,26 @@ void main() {
     expect(viewModel.errorMessage, isNotNull);
   });
 
-  test('An unknown restaurant id is rejected', () {
-    final viewModel = ScanQrViewModel();
+  test('An unknown restaurant id is rejected', () async {
+    final viewModel = _scanViewModel();
 
-    expect(viewModel.onCodeDetected('uniandesfood:does-not-exist'), isFalse);
+    expect(await viewModel.onCodeDetected('does_not_exist'), isFalse);
     expect(viewModel.errorMessage, isNotNull);
   });
 
-  test('Codes detected after verification are ignored', () {
-    final viewModel = ScanQrViewModel()
-      ..onCodeDetected('uniandesfood:el-corral');
+  test('An invalid code does not block the scanner', () async {
+    final viewModel = _scanViewModel();
 
-    expect(viewModel.onCodeDetected('uniandesfood:wok'), isFalse);
-    expect(viewModel.restaurant?.id, 'el-corral');
+    expect(await viewModel.onCodeDetected('..'), isFalse);
+    expect(await viewModel.onCodeDetected('el_toro_rgd'), isTrue);
+  });
+
+  test('Codes detected after verification are ignored', () async {
+    final viewModel = _scanViewModel();
+    await viewModel.onCodeDetected('el_toro_rgd');
+
+    expect(await viewModel.onCodeDetected('one_burrito_ml'), isFalse);
+    expect(viewModel.restaurant?.id, 'el_toro_rgd');
   });
 
   test('Low light is detected and cleared by the light sensor', () {
@@ -213,5 +242,10 @@ void main() {
       expect(viewModel.reportedWait, isNull);
       expect(viewModel.reportCount, 0);
     });
+  });
+
+  test('A new review updates the restaurant average rating', () {
+    expect(ReviewRepository.newAverage(4.5, 2, 5), 4.7);
+    expect(ReviewRepository.newAverage(0, 0, 3), 3.0);
   });
 }

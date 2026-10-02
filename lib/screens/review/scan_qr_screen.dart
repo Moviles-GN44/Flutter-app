@@ -76,11 +76,11 @@ class _ScanQrScreenState extends State<ScanQrScreen>
     }
   }
 
-  void _onDetect(BarcodeCapture capture) {
+  Future<void> _onDetect(BarcodeCapture capture) async {
     final code = capture.barcodes.isEmpty
         ? null
         : capture.barcodes.first.rawValue;
-    if (!_viewModel.onCodeDetected(code)) return;
+    if (!await _viewModel.onCodeDetected(code) || !mounted) return;
 
     HapticFeedback.mediumImpact();
     _scanLine.stop();
