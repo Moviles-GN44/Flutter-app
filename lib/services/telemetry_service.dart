@@ -81,4 +81,38 @@ class TelemetryService {
       return;
     }
   }
+
+  /// BQ6: how long the student spent setting filters on the Explore screen
+  /// before opening a restaurant.
+  Future<void> trackFilterSession({
+    required int durationMs,
+    required int filtersCount,
+    required int filterChanges,
+    required int searches,
+    required bool usedSuggestion,
+    required String restaurantId,
+    String? userId,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': 'filter_session_completed',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {
+          'durationMs': durationMs,
+          'filtersCount': filtersCount,
+          'filterChanges': filterChanges,
+          'searches': searches,
+          'usedSuggestion': usedSuggestion,
+          'restaurantId': restaurantId,
+          'userId': ?userId,
+        },
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
 }

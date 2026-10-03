@@ -17,7 +17,9 @@ class ExploreViewModel extends ChangeNotifier {
     TelemetryService? telemetryService,
     FilterSuggestionService? suggestionService,
     AuthViewModel? auth,
-  }) : _location = locationTracker ?? UserLocationTracker.shared,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now,
+       _location = locationTracker ?? UserLocationTracker.shared,
        _telemetry = telemetryService ?? TelemetryService(),
        _suggestions = suggestionService ?? FilterSuggestionService(),
        _auth = auth {
@@ -38,6 +40,15 @@ class ExploreViewModel extends ChangeNotifier {
   final TelemetryService _telemetry;
   final FilterSuggestionService _suggestions;
   final AuthViewModel? _auth;
+  final DateTime Function() _clock;
+
+  // BQ6: the current filter session, from the first filter the student
+  // touches until they open a restaurant.
+  DateTime? _sessionStart;
+  int _filterChanges = 0;
+  int _sessionSearches = 0;
+  bool _budgetAdjusted = false;
+  bool _usedSuggestion = false;
   late final StreamSubscription<List<Restaurant>> _subscription;
 
   List<Restaurant> _restaurants = const [];
@@ -69,6 +80,8 @@ class ExploreViewModel extends ChangeNotifier {
   void useSuggestion() {
     final suggestion = _suggestion;
     if (suggestion == null) return;
+    _startSession();
+    _usedSuggestion = true;
     _filters = suggestion.filters;
     applyFilters();
   }
@@ -97,7 +110,11 @@ class ExploreViewModel extends ChangeNotifier {
         _filters.maxWalkingMinutes == minutes ? null : minutes,
   );
 
-  void setBudget(int min, int max) => _update(minPrice: min, maxPrice: max);
+  void setBudget(int min, int max) {
+    // Dragging the slider fires many changes; it counts as one.
+    _budgetAdjusted = true;
+    _update(minPrice: min, maxPrice: max, countsAsChange: false);
+  }
 
   void toggleDietary(DietaryOption option) =>
       _update(dietary: _toggled(_filters.dietary, option));
@@ -106,6 +123,8 @@ class ExploreViewModel extends ChangeNotifier {
       _update(paymentMethods: _toggled(_filters.paymentMethods, method));
 
   void applyFilters() {
+    _startSession();
+    _sessionSearches++;
     _showingResults = true;
     notifyListeners();
     _trackAppliedFilters();
@@ -139,6 +158,8 @@ class ExploreViewModel extends ChangeNotifier {
   }
 
   void clearFilters() {
+    _startSession();
+    _filterChanges++;
     _filters = const RestaurantFilters();
     _showingResults = false;
     notifyListeners();
@@ -151,7 +172,10 @@ class ExploreViewModel extends ChangeNotifier {
     int? maxPrice,
     Set<DietaryOption>? dietary,
     Set<String>? paymentMethods,
+    bool countsAsChange = true,
   }) {
+    _startSession();
+    if (countsAsChange) _filterChanges++;
     final f = _filters;
     _filters = RestaurantFilters(
       category: category != null ? category() : f.category,
@@ -181,6 +205,35 @@ class ExploreViewModel extends ChangeNotifier {
     _isLoading = false;
     _errorMessage = 'Could not load restaurants.';
     notifyListeners();
+  }
+
+  /// The student opened [restaurant] from the results: the filter session
+  /// is over and BQ6 records how long it took.
+  void openRestaurant(Restaurant restaurant) {
+    final start = _sessionStart;
+    if (start == null) return;
+
+    unawaited(
+      _telemetry.trackFilterSession(
+        durationMs: _clock().difference(start).inMilliseconds,
+        filtersCount: _filters.activeCount,
+        filterChanges: _filterChanges + (_budgetAdjusted ? 1 : 0),
+        searches: _sessionSearches,
+        usedSuggestion: _usedSuggestion,
+        restaurantId: restaurant.id,
+        userId: _auth?.currentUser?.uid,
+      ),
+    );
+    _sessionStart = null;
+  }
+
+  void _startSession() {
+    if (_sessionStart != null) return;
+    _sessionStart = _clock();
+    _filterChanges = 0;
+    _sessionSearches = 0;
+    _budgetAdjusted = false;
+    _usedSuggestion = false;
   }
 
   void _onAuthChanged() {

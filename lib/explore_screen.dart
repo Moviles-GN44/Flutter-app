@@ -53,6 +53,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _openRestaurant(Restaurant restaurant) {
+    _viewModel.openRestaurant(restaurant);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
