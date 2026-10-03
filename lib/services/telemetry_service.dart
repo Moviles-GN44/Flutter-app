@@ -59,6 +59,7 @@ class TelemetryService {
     required String value,
     required String applyId,
     required int filtersCount,
+    String? userId,
   }) async {
     try {
       final document = _firestore.collection('telemetry_events').doc();
@@ -73,6 +74,7 @@ class TelemetryService {
           'value': value,
           'applyId': applyId,
           'filtersCount': filtersCount,
+          'userId': ?userId,
         },
       });
     } on FirebaseException {

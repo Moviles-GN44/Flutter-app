@@ -7,6 +7,7 @@ import 'package:uniandes_food/profile_screen.dart';
 import 'package:uniandes_food/screens/auth/login_screen.dart';
 import 'package:uniandes_food/screens/home/home_screen.dart';
 import 'package:uniandes_food/screens/review/scan_qr_screen.dart';
+import 'package:uniandes_food/services/location/preferred_building_sync.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
@@ -25,6 +26,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   late final HomeViewModel _homeViewModel;
+  late final PreferredBuildingSync _buildingSync;
 
   @override
   void initState() {
@@ -33,11 +35,13 @@ class _MainShellState extends State<MainShell> {
     _homeViewModel = HomeViewModel(
       authenticatedUserId: () => widget.authViewModel.currentUser?.uid,
     );
+    _buildingSync = PreferredBuildingSync(auth: widget.authViewModel);
   }
 
   @override
   void dispose() {
     _homeViewModel.dispose();
+    _buildingSync.dispose();
     super.dispose();
   }
 
@@ -78,15 +82,26 @@ class _MainShellState extends State<MainShell> {
               index: tab,
               children: [
                 HomeScreen(viewModel: _homeViewModel),
-                const ExploreScreen(showBottomNav: false),
+                ExploreScreen(
+                  showBottomNav: false,
+                  authViewModel: widget.authViewModel,
+                ),
                 const FavoritesScreen(showBottomNav: false),
                 ListenableBuilder(
-                  listenable: widget.authViewModel,
+                  listenable: Listenable.merge([
+                    widget.authViewModel,
+                    _buildingSync,
+                  ]),
                   builder: (context, _) =>
                       widget.authViewModel.isAuthenticated
                           ? ProfileScreen(
                               showBottomNav: false,
                               onLogout: widget.authViewModel.signOut,
+                              user: widget.authViewModel.currentUser,
+                              preferredBuilding:
+                                  _buildingSync.preferredBuilding,
+                              onChangeBuilding:
+                                  _buildingSync.setPreferredBuilding,
                             )
                           : LoginScreen(
                               viewModel: widget.authViewModel,

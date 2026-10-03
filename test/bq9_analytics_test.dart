@@ -24,6 +24,7 @@ class _FakeTelemetry extends TelemetryService {
     required String value,
     required String applyId,
     required int filtersCount,
+    String? userId,
   }) async {
     events.add('$filterType:$value:$filtersCount');
     applyIds.add(applyId);
