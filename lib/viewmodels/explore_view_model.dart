@@ -6,12 +6,15 @@ import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
 import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/services/location/user_location_tracker.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 
 class ExploreViewModel extends ChangeNotifier {
   ExploreViewModel({
     CampusRestaurantsRepository? repository,
     UserLocationTracker? locationTracker,
-  }) : _location = locationTracker ?? UserLocationTracker.shared {
+    TelemetryService? telemetryService,
+  }) : _location = locationTracker ?? UserLocationTracker.shared,
+       _telemetry = telemetryService ?? TelemetryService() {
     _subscription = (repository ?? CampusRestaurantsRepository())
         .watchRestaurants()
         .listen(_onRestaurants, onError: _onError);
@@ -24,6 +27,7 @@ class ExploreViewModel extends ChangeNotifier {
   static const paymentOptions = ['Cash', 'Cards', 'Nequi'];
 
   final UserLocationTracker _location;
+  final TelemetryService _telemetry;
   late final StreamSubscription<List<Restaurant>> _subscription;
 
   List<Restaurant> _restaurants = const [];
@@ -72,6 +76,26 @@ class ExploreViewModel extends ChangeNotifier {
   void applyFilters() {
     _showingResults = true;
     notifyListeners();
+    _trackAppliedFilters();
+  }
+
+  /// BQ9: sends one `filter_applied` event per active filter. A search with
+  /// no filters is sent as `none`, so searches without filters are counted.
+  void _trackAppliedFilters() {
+    final applied = _filters.activeFilters;
+    final applyId = '${DateTime.now().microsecondsSinceEpoch}';
+    final events = applied.isEmpty ? [(type: 'none', value: 'none')] : applied;
+
+    for (final filter in events) {
+      unawaited(
+        _telemetry.trackFilterApplied(
+          filterType: filter.type,
+          value: filter.value,
+          applyId: applyId,
+          filtersCount: applied.length,
+        ),
+      );
+    }
   }
 
   void editFilters() {

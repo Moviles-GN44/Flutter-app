@@ -1,13 +1,16 @@
 import 'package:uniandes_food/models/restaurant.dart';
 
 enum DietaryOption {
-  vegan('Vegan'),
-  glutenFree('Gluten-Free'),
-  lactoseFree('Lactose-Free');
+  vegan('Vegan', 'vegan'),
+  glutenFree('Gluten-Free', 'gluten_free'),
+  lactoseFree('Lactose-Free', 'lactose_free');
 
-  const DietaryOption(this.label);
+  const DietaryOption(this.label, this.key);
 
   final String label;
+
+  /// Stable name stored in analytics events.
+  final String key;
 
   bool isOfferedBy(Restaurant restaurant) => switch (this) {
     DietaryOption.vegan => restaurant.isVegan,
@@ -47,6 +50,17 @@ class RestaurantFilters {
   final Set<String> paymentMethods;
 
   bool get hasBudget => minPrice > minBudget || maxPrice < maxBudget;
+
+  /// One entry per active filter, as analytics stores them (BQ9). The
+  /// `type` groups filters (`dietary`, `price`…) and `value` says which one.
+  List<({String type, String value})> get activeFilters => [
+    if (category case final category?) (type: 'category', value: category),
+    if (maxWalkingMinutes case final minutes?)
+      (type: 'walking_time', value: '$minutes'),
+    if (hasBudget) (type: 'price', value: '$minPrice-$maxPrice'),
+    for (final option in dietary) (type: 'dietary', value: option.key),
+    for (final method in paymentMethods) (type: 'payment', value: method),
+  ];
 
   int get activeCount =>
       (category == null ? 0 : 1) +
