@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
 import 'package:uniandes_food/screens/main_shell.dart';
+import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:uniandes_food/theme/app_theme.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 
@@ -32,11 +34,13 @@ Widget _app() {
 }
 
 void main() {
-  testWidgets('Home shows the selected restaurant preview', (tester) async {
+  testWidgets('Home asks to pick a restaurant before one is selected', (
+    tester,
+  ) async {
     await tester.pumpWidget(_app());
 
-    expect(find.text('El Corral Uniandes'), findsWidgets);
-    expect(find.text('View full menu'), findsOneWidget);
+    expect(find.text('Pick a restaurant'), findsOneWidget);
+    expect(find.text('View full menu'), findsNothing);
   });
 
   testWidgets('QR button opens the camera scanner', (tester) async {
@@ -57,9 +61,12 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_app());
-
-    await tester.tap(find.text('View full menu'));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: RestaurantDetailScreen(restaurant: sampleRestaurants.first),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Corral Todo Terreno'), findsOneWidget);

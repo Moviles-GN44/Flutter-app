@@ -256,6 +256,7 @@ void main() {
 
     test('Verified recent reports weigh more', () async {
       final viewModel = HomeViewModel(
+        initialRestaurant: sampleRestaurants.first,
         reviewRepository: _FakeReviewRepository(
           stored: [
             report(WaitTime.over15, verified: true),
@@ -272,6 +273,7 @@ void main() {
 
     test('Without reports there is no estimate', () async {
       final viewModel = HomeViewModel(
+        initialRestaurant: sampleRestaurants.first,
         reviewRepository: _FakeReviewRepository(),
       );
 

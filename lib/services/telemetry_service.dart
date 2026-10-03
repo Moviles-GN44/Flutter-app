@@ -50,4 +50,33 @@ class TelemetryService {
       return;
     }
   }
+
+  /// BQ9: one event per filter the student applies on the Explore screen.
+  /// Events from the same tap on "Apply Filters" share [applyId], and
+  /// [filtersCount] says how many filters that search used.
+  Future<void> trackFilterApplied({
+    required String filterType,
+    required String value,
+    required String applyId,
+    required int filtersCount,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': 'filter_applied',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {
+          'filterType': filterType,
+          'value': value,
+          'applyId': applyId,
+          'filtersCount': filtersCount,
+        },
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
 }

@@ -51,21 +51,80 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
             ),
-            RestaurantPreviewSheet(
-              restaurant: viewModel.selectedRestaurant,
-              alternative: viewModel.fasterAlternative,
-              reportedWait: viewModel.reportedWait,
-              reportCount: viewModel.reportCount,
-              onSelectAlternative: viewModel.selectRestaurant,
-              onViewMenu: () {
-                viewModel.trackComparisonCriterion('menu');
-              },
-              onViewWaitingTimeAlternative: () {
-                viewModel.trackComparisonCriterion('waiting_time');
-              },
-            ),
+            if (viewModel.selectedRestaurant case final selected?)
+              RestaurantPreviewSheet(
+                restaurant: selected,
+                alternative: viewModel.fasterAlternative,
+                reportedWait: viewModel.reportedWait,
+                reportCount: viewModel.reportCount,
+                onSelectAlternative: viewModel.selectRestaurant,
+                onViewMenu: () {
+                  viewModel.trackComparisonCriterion('menu');
+                },
+                onViewWaitingTimeAlternative: () {
+                  viewModel.trackComparisonCriterion('waiting_time');
+                },
+              )
+            else
+              const _NoSelectionSheet(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shown until the student picks a restaurant on the map.
+class _NoSelectionSheet extends StatelessWidget {
+  const _NoSelectionSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 44),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x1F1E232A),
+            blurRadius: 20,
+            offset: Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.tealTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.touch_app_rounded,
+              color: AppColors.tealDark,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Pick a restaurant', style: AppText.h2),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap a pin on the map to see its menu, wait time and '
+                  'distance.',
+                  style: AppText.caption,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
