@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/repositories/restaurant_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
@@ -10,6 +11,7 @@ import 'package:uniandes_food/services/telemetry_service.dart';
 class HomeViewModel extends ChangeNotifier {
   HomeViewModel({
     RestaurantRepository? repository,
+    CampusRestaurantsRepository? campusRepository,
     TelemetryService? telemetryService,
     ReviewRepository? reviewRepository,
     Restaurant? initialRestaurant,
@@ -18,18 +20,20 @@ class HomeViewModel extends ChangeNotifier {
        _telemetryService = telemetryService ?? TelemetryService(),
        _reviewRepository = reviewRepository ?? ReviewRepository(),
        _authenticatedUserId = authenticatedUserId,
-       _selectedRestaurant =
-           initialRestaurant ??
-           (repository ?? const RestaurantRepository())
-               .getAllRestaurants()
-               .first {
-    loadReportedWait();
+       // Nothing is selected until the student taps a restaurant on the map.
+       _selectedRestaurant = initialRestaurant {
+    _restaurantsSubscription =
+        (campusRepository ?? CampusRestaurantsRepository())
+            .watchRestaurants()
+            .listen(_onRestaurants, onError: (Object _) {});
+    if (_selectedRestaurant != null) loadReportedWait();
     _reviewSubscription = ReviewRepository.published.listen((restaurantId) {
-      if (restaurantId == _selectedRestaurant.id) loadReportedWait();
+      if (restaurantId == _selectedRestaurant?.id) loadReportedWait();
     });
   }
 
   late final StreamSubscription<String> _reviewSubscription;
+  late final StreamSubscription<List<Restaurant>> _restaurantsSubscription;
 
   static const _reportMinutes = {
     WaitTime.under5: 3,
@@ -42,35 +46,45 @@ class HomeViewModel extends ChangeNotifier {
   final ReviewRepository _reviewRepository;
   final String? Function()? _authenticatedUserId;
 
-  Restaurant _selectedRestaurant;
+  List<Restaurant> _restaurants = const [];
+  Restaurant? _selectedRestaurant;
   WaitTime? _reportedWait;
   int _reportCount = 0;
 
-  Restaurant get selectedRestaurant => _selectedRestaurant;
+  Restaurant? get selectedRestaurant => _selectedRestaurant;
   WaitTime? get reportedWait => _reportedWait;
   int get reportCount => _reportCount;
 
-  List<Restaurant> get restaurants =>
-      _repository.getAllRestaurants();
+  /// Restaurants from the Firestore `restaurants` collection.
+  List<Restaurant> get restaurants => _restaurants;
 
- WaitTime get currentWaitContext =>
-    _reportedWait ?? _selectedRestaurant.waitTime;
+ WaitTime? get currentWaitContext =>
+    _reportedWait ?? _selectedRestaurant?.waitTime;
 
 bool get hasHighWaitContext =>
     currentWaitContext == WaitTime.over15;
 
   Restaurant? get fasterAlternative {
-    if (!hasHighWaitContext) {
+    final selected = _selectedRestaurant;
+    if (selected == null || !hasHighWaitContext) {
       return null;
     }
 
-    return _repository.getFasterAlternative(_selectedRestaurant);
+    return _repository.recommendationStrategy.recommend(
+      currentRestaurant: selected,
+      restaurants: _restaurants,
+    );
+  }
+
+  void _onRestaurants(List<Restaurant> restaurants) {
+    _restaurants = restaurants;
+    notifyListeners();
   }
 
  
 
   void selectRestaurant(Restaurant restaurant) {
-    if (_selectedRestaurant.id == restaurant.id) {
+    if (_selectedRestaurant?.id == restaurant.id) {
       return;
     }
 
@@ -82,10 +96,11 @@ bool get hasHighWaitContext =>
   }
 
   Future<void> loadReportedWait() async {
-    final restaurantId = _selectedRestaurant.id;
+    final restaurantId = _selectedRestaurant?.id;
+    if (restaurantId == null) return;
     final reviews = await _reviewRepository.getReviews(restaurantId);
 
-    if (restaurantId != _selectedRestaurant.id) return;
+    if (restaurantId != _selectedRestaurant?.id) return;
 
     final now = DateTime.now();
     var weightedMinutes = 0.0;
@@ -131,13 +146,16 @@ bool get hasHighWaitContext =>
   @override
   void dispose() {
     _reviewSubscription.cancel();
+    _restaurantsSubscription.cancel();
     super.dispose();
   }
 
   Future<void> trackComparisonCriterion(String criterion) async {
+    final selected = _selectedRestaurant;
+    if (selected == null) return;
     await _telemetryService.trackComparisonCriterion(
       criterion: criterion,
-      restaurantId: _selectedRestaurant.id,
+      restaurantId: selected.id,
       userId: _authenticatedUserId?.call(),
     );
   }

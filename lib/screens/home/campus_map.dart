@@ -11,12 +11,13 @@ class CampusMap extends StatefulWidget {
   const CampusMap({
     super.key,
     required this.restaurants,
-    required this.selected,
     required this.onSelect,
+    this.selected,
   });
 
   final List<Restaurant> restaurants;
-  final Restaurant selected;
+  /// Null until the student taps a restaurant.
+  final Restaurant? selected;
   final ValueChanged<Restaurant> onSelect;
 
   @override
@@ -52,8 +53,9 @@ class _CampusMapState extends State<CampusMap> {
   @override
   void didUpdateWidget(CampusMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selected.id != widget.selected.id) {
-      _controller.move(widget.selected.location, _controller.camera.zoom);
+    final selected = widget.selected;
+    if (selected != null && oldWidget.selected?.id != selected.id) {
+      _controller.move(selected.location, _controller.camera.zoom);
     }
   }
 
@@ -100,8 +102,8 @@ class _CampusMapState extends State<CampusMap> {
     // The selected pin goes last so it is drawn on top. It is only drawn when
     // it is one of the Firestore restaurants.
     final ordered = [
-      ...restaurants.where((r) => r.id != selected.id),
-      ...restaurants.where((r) => r.id == selected.id),
+      ...restaurants.where((r) => r.id != selected?.id),
+      ...restaurants.where((r) => r.id == selected?.id),
     ];
     final status = _viewModel.isLoading
         ? 'Loading restaurants…'
@@ -140,7 +142,7 @@ class _CampusMapState extends State<CampusMap> {
                 alignment: _pinAlignment,
                 child: _RestaurantPin(
                   restaurant: restaurant,
-                  selected: restaurant.id == selected.id,
+                  selected: restaurant.id == selected?.id,
                   // Fade what is far away only when something is close, so
                   // the map never looks empty.
                   dimmed: hasNearby && !_viewModel.isNearby(restaurant),
