@@ -32,6 +32,9 @@ class Restaurant {
     required this.location,
     this.imageAsset,
     this.isVegan = false,
+    this.isGlutenFree = false,
+    this.isLactoseFree = false,
+    this.averagePriceCop,
     this.hasPromo = false,
     this.address = '',
     this.schedule = '',
@@ -75,6 +78,9 @@ class Restaurant {
       foodIcon: _iconFor(category),
       location: location ?? campusCenter,
       isVegan: data['isVeganFriendly'] as bool? ?? false,
+      isGlutenFree: data['isGlutenFreeFriendly'] as bool? ?? false,
+      isLactoseFree: data['isLactoseFreeFriendly'] as bool? ?? false,
+      averagePriceCop: averagePrice,
       paymentMethods: [
         for (final method in data['paymentMethods'] as List? ?? const [])
           '$method',
@@ -131,6 +137,11 @@ class Restaurant {
   final LatLng location;
   final String? imageAsset;
   final bool isVegan;
+  final bool isGlutenFree;
+  final bool isLactoseFree;
+
+  /// Average price of a meal in Colombian pesos, when known.
+  final int? averagePriceCop;
   final bool hasPromo;
   final String address;
   final String schedule;
