@@ -3,17 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BQ5 Dashboard</title>
+<title>UniandesFood Analytics</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
     --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085;
     --border: #e4e7ec; --qr: #2563eb; --manual: #f59e0b;
+    --bq3: #0d9488; --bq3-soft: #99d5cf;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0f1219; --card: #181c26; --text: #e6e9ef; --muted: #98a2b3;
       --border: #2a3040; --qr: #60a5fa; --manual: #fbbf24;
+      --bq3: #2dd4bf; --bq3-soft: #1f5a55;
     }
   }
   * { box-sizing: border-box; }
@@ -25,9 +27,16 @@
   h1 { font-size: 24px; margin: 0 0 4px; }
   h2 { font-size: 15px; margin: 0 0 12px; }
   .muted { color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; margin: 20px 0 4px; border-bottom: 1px solid var(--border); }
+  .tab {
+    background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+    padding: 8px 14px; color: var(--muted); font-weight: 600;
+  }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+  .question { margin: 16px 0 0; font-size: 18px; font-weight: 650; }
   .pipeline {
     display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-    margin: 18px 0 22px; font-size: 13px;
+    margin: 14px 0 20px; font-size: 13px;
   }
   .step {
     background: var(--card); border: 1px solid var(--border);
@@ -40,12 +49,13 @@
   .kpi { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
   .chart { position: relative; height: 280px; }
-  .error { background: #fee4e2; color: #912018; padding: 12px; border-radius: 8px; display: none; }
+  .error { background: #fee4e2; color: #912018; padding: 12px; border-radius: 8px; display: none; margin-bottom: 14px; }
   button {
     background: var(--card); color: var(--text); border: 1px solid var(--border);
     border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit;
   }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  [hidden] { display: none !important; }
   @media (max-width: 480px) { .grid.wide { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -53,45 +63,85 @@
 <main>
   <header>
     <div>
-      <h1>BQ5 · Embudo de reseñas: QR vs manual</h1>
-      <div class="muted">¿Cuántos estudiantes que empiezan una reseña la publican, y verificar la visita con QR cambia eso?</div>
+      <h1>UniandesFood · Analytics</h1>
+      <div class="muted" id="generatedAt">Cargando…</div>
     </div>
     <button id="refresh">Actualizar</button>
   </header>
 
-  <div class="pipeline">
-    <span class="step">WriteReviewViewModel</span>→
-    <span class="step"><code>trackReviewEvent()</code></span>→
-    <span class="step">Firestore <code>telemetry_events</code></span>→
-    <span class="step"><code>dashboard.py</code> aggregate</span>→
-    <span class="step">localhost</span>
-  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="bq3">BQ3 · Criterios de comparación</button>
+    <button class="tab" role="tab" data-tab="bq5">BQ5 · Embudo de reseñas</button>
+  </nav>
 
   <div id="error" class="error"></div>
 
-  <div class="grid">
-    <div class="card"><div class="muted"><span class="dot" style="background:var(--qr)"></span>Conversión QR</div><div class="kpi" id="convQr">–</div><div class="muted" id="detailQr"></div></div>
-    <div class="card"><div class="muted"><span class="dot" style="background:var(--manual)"></span>Conversión manual</div><div class="kpi" id="convManual">–</div><div class="muted" id="detailManual"></div></div>
-    <div class="card"><div class="muted">Reseñas publicadas con QR</div><div class="kpi" id="qrShare">–</div><div class="muted" id="detailShare"></div></div>
-    <div class="card"><div class="muted">Eventos procesados</div><div class="kpi" id="totalEvents">–</div><div class="muted" id="generatedAt"></div></div>
-  </div>
+  <!-- BQ3 -->
+  <section id="panel-bq3" role="tabpanel">
+    <p class="question">¿Qué criterio consultan más los estudiantes al comparar restaurantes?</p>
+    <div class="pipeline">
+      <span class="step">HomeViewModel · RestaurantDetailScreen</span>→
+      <span class="step"><code>trackComparisonCriterion()</code></span>→
+      <span class="step">Firestore <code>telemetry_events</code></span>→
+      <span class="step"><code>dashboard.py</code> aggregate_bq3</span>→
+      <span class="step">localhost</span>
+    </div>
 
-  <div class="grid wide">
-    <div class="card"><h2>Iniciadas vs publicadas</h2><div class="chart"><canvas id="funnel"></canvas></div></div>
-    <div class="card"><h2>Publicadas por día</h2><div class="chart"><canvas id="daily"></canvas></div></div>
-  </div>
-  <div class="grid wide">
-    <div class="card"><h2>Publicadas por restaurante</h2><div class="chart"><canvas id="restaurants"></canvas></div></div>
-  </div>
+    <div class="grid">
+      <div class="card"><div class="muted">Criterio más consultado</div><div class="kpi" id="bq3Top">–</div><div class="muted" id="bq3TopDetail"></div></div>
+      <div class="card"><div class="muted">Interacciones</div><div class="kpi" id="bq3Total">–</div><div class="muted">eventos de comparación</div></div>
+      <div class="card"><div class="muted">Usuarios únicos</div><div class="kpi" id="bq3Users">–</div><div class="muted">con sesión iniciada</div></div>
+    </div>
+
+    <div class="grid wide">
+      <div class="card"><h2>Consultas por criterio</h2><div class="chart"><canvas id="bq3Criteria"></canvas></div></div>
+      <div class="card"><h2>Restaurantes más comparados</h2><div class="chart"><canvas id="bq3Restaurants"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- BQ5 -->
+  <section id="panel-bq5" role="tabpanel">
+    <p class="question">¿Cuántos estudiantes que empiezan una reseña la publican, y verificar la visita con QR cambia eso?</p>
+    <div class="pipeline">
+      <span class="step">WriteReviewViewModel</span>→
+      <span class="step"><code>trackReviewEvent()</code></span>→
+      <span class="step">Firestore <code>telemetry_events</code></span>→
+      <span class="step"><code>dashboard.py</code> aggregate_bq5</span>→
+      <span class="step">localhost</span>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="muted"><span class="dot" style="background:var(--qr)"></span>Conversión QR</div><div class="kpi" id="convQr">–</div><div class="muted" id="detailQr"></div></div>
+      <div class="card"><div class="muted"><span class="dot" style="background:var(--manual)"></span>Conversión manual</div><div class="kpi" id="convManual">–</div><div class="muted" id="detailManual"></div></div>
+      <div class="card"><div class="muted">Reseñas publicadas con QR</div><div class="kpi" id="qrShare">–</div><div class="muted" id="detailShare"></div></div>
+      <div class="card"><div class="muted">Eventos procesados</div><div class="kpi" id="totalEvents">–</div><div class="muted">iniciadas + publicadas</div></div>
+    </div>
+
+    <div class="grid wide">
+      <div class="card"><h2>Iniciadas vs publicadas</h2><div class="chart"><canvas id="funnel"></canvas></div></div>
+      <div class="card"><h2>Publicadas por día</h2><div class="chart"><canvas id="daily"></canvas></div></div>
+    </div>
+    <div class="grid wide">
+      <div class="card"><h2>Publicadas por restaurante</h2><div class="chart"><canvas id="restaurants"></canvas></div></div>
+    </div>
+  </section>
 </main>
 
 <script>
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const $ = (id) => document.getElementById(id);
   const charts = {};
+  const CRITERIA_LABELS = {
+    price: 'Precio',
+    distance: 'Distancia',
+    waiting_time: 'Tiempo de espera',
+    menu: 'Menú',
+    dietary_preferences: 'Preferencias alimentarias',
+  };
 
   function draw(id, config) {
     charts[id]?.destroy();
-    charts[id] = new Chart(document.getElementById(id), config);
+    charts[id] = new Chart($(id), config);
   }
 
   function series(rows) {
@@ -101,32 +151,68 @@
     ];
   }
 
-  async function load() {
-    const errorBox = document.getElementById('error');
-    errorBox.style.display = 'none';
-    const response = await fetch('/api/bq5');
-    const data = await response.json();
-    if (!response.ok) {
-      errorBox.textContent = 'Error leyendo Firestore: ' + data.error;
-      errorBox.style.display = 'block';
-      return;
-    }
-
-    const { qr, manual } = data.totals;
-    const published = qr.published + manual.published;
-    document.getElementById('convQr').textContent = qr.conversion + '%';
-    document.getElementById('detailQr').textContent = `${qr.published} de ${qr.started} iniciadas`;
-    document.getElementById('convManual').textContent = manual.conversion + '%';
-    document.getElementById('detailManual').textContent = `${manual.published} de ${manual.started} iniciadas`;
-    document.getElementById('qrShare').textContent = data.qrShare + '%';
-    document.getElementById('detailShare').textContent = `${qr.published} de ${published} publicadas`;
-    document.getElementById('totalEvents').textContent = data.totalEvents;
-    document.getElementById('generatedAt').textContent = 'Actualizado ' + data.generatedAt;
-
+  function baseOptions() {
     Chart.defaults.color = css('--muted');
     Chart.defaults.borderColor = css('--border');
-    const options = { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } };
+    return { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } };
+  }
 
+  async function fetchJson(path) {
+    const response = await fetch(path);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error);
+    return data;
+  }
+
+  function renderBq3(data) {
+    const top = data.mostConsulted;
+    $('bq3Top').textContent = top ? CRITERIA_LABELS[top] : '–';
+    $('bq3TopDetail').textContent = top ? `${data.counts[top]} consultas · ${data.percentages[top]}%` : 'Sin datos todavía';
+    $('bq3Total').textContent = data.total;
+    $('bq3Users').textContent = data.uniqueUsers;
+
+    const criteria = Object.keys(data.counts);
+    const horizontal = { ...baseOptions(), indexAxis: 'y', plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } };
+
+    draw('bq3Criteria', {
+      type: 'bar',
+      data: {
+        labels: criteria.map(c => CRITERIA_LABELS[c]),
+        datasets: [{
+          data: criteria.map(c => data.counts[c]),
+          backgroundColor: criteria.map(c => c === top ? css('--bq3') : css('--bq3-soft')),
+          borderRadius: 4, maxBarThickness: 34,
+        }],
+      },
+      options: { ...horizontal, plugins: { ...horizontal.plugins, tooltip: {
+        callbacks: { label: (ctx) => ` ${ctx.raw} consultas · ${data.percentages[criteria[ctx.dataIndex]]}%` },
+      } } },
+    });
+
+    const restaurants = Object.keys(data.byRestaurant);
+    draw('bq3Restaurants', {
+      type: 'bar',
+      data: {
+        labels: restaurants,
+        datasets: [{ data: restaurants.map(r => data.byRestaurant[r]), backgroundColor: css('--bq3'), borderRadius: 4, maxBarThickness: 34 }],
+      },
+      options: horizontal,
+    });
+  }
+
+  function renderBq5(data) {
+    const { qr, manual } = data.totals;
+    const published = qr.published + manual.published;
+    $('convQr').textContent = qr.conversion + '%';
+    $('detailQr').textContent = `${qr.published} de ${qr.started} iniciadas`;
+    $('convManual').textContent = manual.conversion + '%';
+    $('detailManual').textContent = `${manual.published} de ${manual.started} iniciadas`;
+    $('qrShare').textContent = data.qrShare + '%';
+    $('detailShare').textContent = `${qr.published} de ${published} publicadas`;
+    $('totalEvents').textContent = data.totalEvents;
+
+    const options = baseOptions();
     draw('funnel', {
       type: 'bar',
       data: {
@@ -154,7 +240,30 @@
     });
   }
 
-  document.getElementById('refresh').addEventListener('click', load);
+  async function load() {
+    const errorBox = $('error');
+    errorBox.style.display = 'none';
+    try {
+      const [bq3, bq5] = await Promise.all([fetchJson('/api/bq3'), fetchJson('/api/bq5')]);
+      renderBq3(bq3);
+      renderBq5(bq5);
+      $('generatedAt').textContent = 'Actualizado ' + bq5.generatedAt;
+    } catch (error) {
+      errorBox.textContent = 'Error leyendo Firestore: ' + error.message;
+      errorBox.style.display = 'block';
+    }
+  }
+
+  function selectTab(name) {
+    document.querySelectorAll('.tab').forEach(tab => tab.setAttribute('aria-selected', tab.dataset.tab === name));
+    document.querySelectorAll('section[role="tabpanel"]').forEach(panel => { panel.hidden = panel.id !== 'panel-' + name; });
+    history.replaceState(null, '', '#' + name);
+    Object.values(charts).forEach(chart => chart.resize());
+  }
+
+  document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
+  $('refresh').addEventListener('click', load);
+  selectTab(location.hash === '#bq5' ? 'bq5' : 'bq3');
   load();
 </script>
 </body>
