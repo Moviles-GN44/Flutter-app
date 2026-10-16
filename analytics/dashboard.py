@@ -1,13 +1,16 @@
-"""Local analytics dashboard for BQ5.
+"""Local analytics dashboard for the business questions.
+
+BQ3: which criterion do students consult the most when comparing
+restaurants (price, distance, waiting time, menu, dietary preferences)?
 
 BQ5: how many students who start a review end up publishing it, and does
 verifying the visit with the QR code change that?
 
 Pipeline:
-  Flutter app (WriteReviewViewModel)
-    -> TelemetryService.trackReviewEvent()
-    -> Firestore `telemetry_events` (review_started / review_published)
-    -> this script (aggregate)
+  Flutter app (HomeViewModel, RestaurantDetailScreen, WriteReviewViewModel)
+    -> TelemetryService.trackComparisonCriterion() / trackReviewEvent()
+    -> Firestore `telemetry_events`
+    -> this script (aggregate_bq3 / aggregate_bq5)
     -> http://localhost:8000
 
 Reads Firestore through its REST API with the public API key from
@@ -32,8 +35,11 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 GOOGLE_SERVICES = HERE.parent / "android" / "app" / "google-services.json"
+COMPARISON_EVENT = "restaurant_comparison_criterion"
 REVIEW_EVENTS = ["review_started", "review_published"]
 METHODS = ["qr", "manual"]
+# Same criteria as BQ3AnalyticsService in lib/services/bq3_analytics_service.dart.
+CRITERIA = ["price", "distance", "waiting_time", "menu", "dietary_preferences"]
 
 
 def firebase_config():
@@ -61,7 +67,7 @@ def decode(value):
     return None
 
 
-def fetch_events():
+def fetch_events(event_names):
     project_id, api_key = firebase_config()
     url = (
         f"https://firestore.googleapis.com/v1/projects/{project_id}"
@@ -76,7 +82,7 @@ def fetch_events():
                     "op": "IN",
                     "value": {
                         "arrayValue": {
-                            "values": [{"stringValue": e} for e in REVIEW_EVENTS]
+                            "values": [{"stringValue": e} for e in event_names]
                         }
                     },
                 }
@@ -118,16 +124,68 @@ def demo_events():
                     "params": params,
                 }
             )
+    for _ in range(90):
+        events.append(
+            {
+                "eventName": COMPARISON_EVENT,
+                "timestamp": now - random.randint(0, 13) * day,
+                "params": {
+                    "criterion": random.choices(CRITERIA, weights=[3, 6, 2, 2, 1])[0],
+                    "restaurantId": random.choice(restaurants),
+                    "userId": f"user-{random.randint(1, 25)}",
+                },
+            }
+        )
     return events
 
 
-def aggregate(events):
+def aggregate_bq3(events):
+    """Turns raw comparison events into the BQ3 answer."""
+    counts = {criterion: 0 for criterion in CRITERIA}
+    by_restaurant = defaultdict(int)
+    users = set()
+
+    for event in events:
+        if event.get("eventName") != COMPARISON_EVENT:
+            continue
+        params = event.get("params")
+        if not isinstance(params, dict):
+            continue
+        criterion = params.get("criterion")
+        if criterion not in counts:
+            continue
+
+        counts[criterion] += 1
+        by_restaurant[params.get("restaurantId") or "unknown"] += 1
+        if params.get("userId"):
+            users.add(params["userId"])
+
+    total = sum(counts.values())
+    return {
+        "generatedAt": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total": total,
+        "uniqueUsers": len(users),
+        "counts": counts,
+        "percentages": {
+            criterion: round(count / total * 100, 1) if total else 0
+            for criterion, count in counts.items()
+        },
+        "mostConsulted": max(counts, key=counts.get) if total else None,
+        "byRestaurant": dict(
+            sorted(by_restaurant.items(), key=lambda item: -item[1])[:8]
+        ),
+    }
+
+
+def aggregate_bq5(events):
     """Turns raw review events into the BQ5 answer."""
     totals = {m: {"started": 0, "published": 0} for m in METHODS}
     by_restaurant = defaultdict(lambda: {m: 0 for m in METHODS})
     by_day = defaultdict(lambda: {m: 0 for m in METHODS})
 
     for event in events:
+        if event.get("eventName") not in REVIEW_EVENTS:
+            continue
         params = event.get("params")
         if not isinstance(params, dict):
             continue
@@ -166,14 +224,22 @@ def aggregate(events):
     }
 
 
+API = {
+    "/api/bq3": ([COMPARISON_EVENT], aggregate_bq3),
+    "/api/bq5": (REVIEW_EVENTS, aggregate_bq5),
+}
+
+
 def make_handler(load):
     page = (HERE / "dashboard.html").read_bytes()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/api/bq5":
+            if self.path in API:
+                event_names, aggregate = API[self.path]
                 try:
-                    body, status = json.dumps(aggregate(load())).encode(), 200
+                    result = aggregate(load(event_names))
+                    body, status = json.dumps(result).encode(), 200
                 except Exception as error:  # surface Firestore errors in the page
                     body, status = json.dumps({"error": str(error)}).encode(), 500
                 self._send(status, "application/json", body)
@@ -196,7 +262,7 @@ def make_handler(load):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="BQ5 analytics dashboard")
+    parser = argparse.ArgumentParser(description="BQ3 + BQ5 analytics dashboard")
     parser.add_argument("--demo", action="store_true", help="use sample data")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
@@ -204,13 +270,13 @@ def main():
 
     if args.demo:
         sample = demo_events()
-        load = lambda: sample
+        load = lambda names: [e for e in sample if e["eventName"] in names]
     else:
         load = fetch_events
 
     url = f"http://localhost:{args.port}"
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(load))
-    print(f"BQ5 dashboard en {url}  (Ctrl+C para salir)")
+    print(f"Dashboard BQ3 + BQ5 en {url}  (Ctrl+C para salir)")
     if not args.no_browser:
         webbrowser.open(url)
     try:
