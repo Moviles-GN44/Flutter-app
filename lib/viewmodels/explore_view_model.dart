@@ -16,7 +16,7 @@ class ExploreViewModel extends ChangeNotifier {
   }) : _location = locationTracker ?? UserLocationTracker.shared,
        _telemetry = telemetryService ?? TelemetryService() {
     _subscription = (repository ?? CampusRestaurantsRepository())
-        .watchRestaurants()
+        .watchRestaurantsWithMetadata()
         .listen(_onRestaurants, onError: _onError);
     _location.addListener(notifyListeners);
   }
@@ -28,18 +28,24 @@ class ExploreViewModel extends ChangeNotifier {
 
   final UserLocationTracker _location;
   final TelemetryService _telemetry;
-  late final StreamSubscription<List<Restaurant>> _subscription;
+  late final StreamSubscription<RestaurantsSnapshot> _subscription;
 
   List<Restaurant> _restaurants = const [];
   RestaurantFilters _filters = const RestaurantFilters();
   bool _showingResults = false;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isFromCache = false;
+  bool _hasReceivedSnapshot = false;
 
   RestaurantFilters get filters => _filters;
   bool get showingResults => _showingResults;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isFromCache => _isFromCache;
+  bool get hasReceivedSnapshot => _hasReceivedSnapshot;
+  bool get hasNoCachedRestaurants =>
+      _hasReceivedSnapshot && _isFromCache && _restaurants.isEmpty;
 
   /// Where walking times are measured from: `you` with GPS, else a building.
   String get measuredFrom => _location.isUsingGps ? 'you' : _location.label;
@@ -135,8 +141,10 @@ class ExploreViewModel extends ChangeNotifier {
       ? ({...values}..remove(value))
       : {...values, value};
 
-  void _onRestaurants(List<Restaurant> restaurants) {
-    _restaurants = restaurants;
+  void _onRestaurants(RestaurantsSnapshot snapshot) {
+    _restaurants = snapshot.restaurants;
+    _isFromCache = snapshot.isFromCache;
+    _hasReceivedSnapshot = true;
     _isLoading = false;
     _errorMessage = null;
     notifyListeners();
