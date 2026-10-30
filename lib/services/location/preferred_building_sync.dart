@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/data/campus.dart';
+import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/repositories/user_profile_repository.dart';
 import 'package:uniandes_food/services/location/user_location_tracker.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
@@ -29,9 +32,14 @@ class PreferredBuildingSync extends ChangeNotifier {
 
   String? _uid;
   String? _preferredBuilding;
+  int _pendingSaves = 0;
+  bool _disposed = false;
 
   /// Building code (`ML`, `SD`…) saved in the account, if any.
   String? get preferredBuilding => _preferredBuilding;
+
+  /// True while a building the student chose has not reached the server yet,
+  bool get isSyncing => _pendingSaves > 0;
 
   Future<void> _onAuthChanged() async {
     final user = _auth.currentUser;
@@ -62,12 +70,26 @@ class PreferredBuildingSync extends ChangeNotifier {
 
     _preferredBuilding = building;
     _tracker.setFallbackBuilding(building);
+    _pendingSaves++;
     notifyListeners();
-    _repository.savePreferredBuilding(user, building);
+    unawaited(_save(user, building));
+  }
+
+  // Offline, Firestore keeps the write in its queue on the phone and sends it
+  // when the connection is back; the save only completes once the server has
+  // it, so until then the profile says it is waiting to sync.
+  Future<void> _save(AppUser user, String building) async {
+    try {
+      await _repository.savePreferredBuilding(user, building);
+    } finally {
+      _pendingSaves--;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _auth.removeListener(_onAuthChanged);
     super.dispose();
   }

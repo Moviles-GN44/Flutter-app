@@ -12,6 +12,7 @@ class ProfileScreen extends StatefulWidget {
     this.user,
     this.preferredBuilding,
     this.onChangeBuilding,
+    this.buildingIsSyncing = false,
   });
 
   /// The shell provides its own bottom bar, so it hides this one.
@@ -26,6 +27,9 @@ class ProfileScreen extends StatefulWidget {
 
   /// Saves a new preferred building in the student's account.
   final ValueChanged<String>? onChangeBuilding;
+
+  /// True while the building chosen offline waits to reach the server.
+  final bool buildingIsSyncing;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -198,6 +202,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                         _StatisticsRow(
                           reviews: reviewCount == null ? '–' : '$reviewCount',
+                          reviewsLabel: viewModel?.reviewCountIsCached == true
+                              ? 'Reviews (offline)'
+                              : 'Reviews',
                           building: building ?? '–',
                           buildingName: campusBuildingNames[building],
                         ),
@@ -212,6 +219,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? null
                               : _chooseBuilding,
                         ),
+
+                        if (widget.buildingIsSyncing) const _SyncPendingNote(),
 
                         const SizedBox(height: 20),
 
@@ -309,11 +318,13 @@ class _ProfileAvatar extends StatelessWidget {
 class _StatisticsRow extends StatelessWidget {
   const _StatisticsRow({
     required this.reviews,
+    required this.reviewsLabel,
     required this.building,
     this.buildingName,
   });
 
   final String reviews;
+  final String reviewsLabel;
   final String building;
   final String? buildingName;
 
@@ -322,7 +333,7 @@ class _StatisticsRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: _StatisticItem(number: reviews, label: 'Reviews'),
+          child: _StatisticItem(number: reviews, label: reviewsLabel),
         ),
         Expanded(
           child: Semantics(
@@ -367,6 +378,40 @@ class _StatisticItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+class _SyncPendingNote extends StatelessWidget {
+  const _SyncPendingNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Icon(
+              Icons.cloud_upload_outlined,
+              size: 18,
+              color: ProfileScreen.secondaryText,
+            ),
+          ),
+          SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              'Saved on this phone. It will sync when you are back online.',
+              style: TextStyle(
+                color: ProfileScreen.secondaryText,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

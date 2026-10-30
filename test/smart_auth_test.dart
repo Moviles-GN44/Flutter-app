@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:uniandes_food/models/app_user.dart';
@@ -29,10 +31,16 @@ class _SignedInAuth implements AuthRepository {
 }
 
 class _FakeProfiles implements UserProfileRepository {
-  _FakeProfiles({this.stored});
+  _FakeProfiles({this.stored, this.serverAck, Stream<ReviewCount>? reviews})
+    : reviews = reviews ?? Stream.value((count: 3, isFromCache: false));
 
   String? stored;
   final saved = <String>[];
+
+  /// When set, saves stay pending until it completes, like a write made
+  /// offline that waits for the server.
+  final Completer<void>? serverAck;
+  final Stream<ReviewCount> reviews;
 
   @override
   Future<String?> loadPreferredBuilding(String uid) async => stored;
@@ -40,10 +48,11 @@ class _FakeProfiles implements UserProfileRepository {
   @override
   Future<void> savePreferredBuilding(AppUser user, String building) async {
     saved.add('${user.uid}:$building');
+    await serverAck?.future;
   }
 
   @override
-  Future<int?> countReviews(String uid) async => 3;
+  Stream<ReviewCount> watchReviewCount(String uid) => reviews;
 }
 
 Map<String, dynamic> _event(
@@ -144,6 +153,29 @@ void main() {
       expect(profiles.saved, ['student-1:RGD']);
     });
 
+    test('A building chosen offline shows as syncing until the server has '
+        'it', () async {
+      final serverAck = Completer<void>();
+      final sync = PreferredBuildingSync(
+        auth: AuthViewModel(repository: _SignedInAuth()),
+        tracker: _tracker(),
+        repository: _FakeProfiles(serverAck: serverAck),
+      );
+      await pumpEventQueue();
+
+      sync.setPreferredBuilding('ML');
+      await pumpEventQueue();
+
+      // Used right away on the phone, but not confirmed yet.
+      expect(sync.preferredBuilding, 'ML');
+      expect(sync.isSyncing, isTrue);
+
+      serverAck.complete();
+      await pumpEventQueue();
+
+      expect(sync.isSyncing, isFalse);
+    });
+
     test('Unknown building codes are ignored', () async {
       final sync = PreferredBuildingSync(
         auth: AuthViewModel(repository: _SignedInAuth()),
@@ -167,6 +199,29 @@ void main() {
       expect(viewModel.displayName, 'Juan Perez');
       expect(viewModel.initials, 'JP');
       expect(viewModel.reviewCount, 3);
+    });
+
+    test('Offline the cached review count is shown and then replaced by '
+        'the server count', () async {
+      final reviews = StreamController<ReviewCount>();
+      final viewModel = ProfileViewModel(
+        user: _student,
+        repository: _FakeProfiles(reviews: reviews.stream),
+      );
+
+      reviews.add((count: 2, isFromCache: true));
+      await pumpEventQueue();
+      expect(viewModel.reviewCount, 2);
+      expect(viewModel.reviewCountIsCached, isTrue);
+
+      // The connection is back.
+      reviews.add((count: 4, isFromCache: false));
+      await pumpEventQueue();
+      expect(viewModel.reviewCount, 4);
+      expect(viewModel.reviewCountIsCached, isFalse);
+
+      viewModel.dispose();
+      await reviews.close();
     });
 
     test('Without a name the email is used', () {
