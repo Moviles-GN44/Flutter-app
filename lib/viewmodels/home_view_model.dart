@@ -16,7 +16,7 @@ class HomeViewModel extends ChangeNotifier {
     ReviewRepository? reviewRepository,
     Restaurant? initialRestaurant,
     String? Function()? authenticatedUserId,
-  }) : _repository = repository ?? const RestaurantRepository(),
+  }) : _repository = repository ?? RestaurantRepository(),
        _telemetryService = telemetryService ?? TelemetryService(),
        _reviewRepository = reviewRepository ?? ReviewRepository(),
        _authenticatedUserId = authenticatedUserId,
@@ -58,11 +58,10 @@ class HomeViewModel extends ChangeNotifier {
   /// Restaurants from the Firestore `restaurants` collection.
   List<Restaurant> get restaurants => _restaurants;
 
- WaitTime? get currentWaitContext =>
-    _reportedWait ?? _selectedRestaurant?.waitTime;
+  WaitTime? get currentWaitContext =>
+      _reportedWait ?? _selectedRestaurant?.waitTime;
 
-bool get hasHighWaitContext =>
-    currentWaitContext == WaitTime.over15;
+  bool get hasHighWaitContext => currentWaitContext == WaitTime.over15;
 
   Restaurant? get fasterAlternative {
     final selected = _selectedRestaurant;
@@ -80,8 +79,6 @@ bool get hasHighWaitContext =>
     _restaurants = restaurants;
     notifyListeners();
   }
-
- 
 
   void selectRestaurant(Restaurant restaurant) {
     if (_selectedRestaurant?.id == restaurant.id) {
