@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:uniandes_food/models/app_user.dart';
+/// Firestore keeps on the phone (offline) instead of from the server.
+typedef ReviewCount = ({int count, bool isFromCache});
 
 /// Reads and writes the signed-in student's profile in Firestore.
 ///
@@ -40,15 +42,23 @@ class UserProfileRepository {
   }
 
   /// How many reviews the student has published.
-  Future<int?> countReviews(String uid) async {
+  ///
+  /// Offline it emits the count cached on the phone, and the server count as
+  /// soon as the connection is back, so the screen updates by itself.
+  Stream<ReviewCount> watchReviewCount(String uid) {
     try {
-      final snapshot = await _firestore
+      return _firestore
           .collection('reviews')
           .where('userId', isEqualTo: uid)
-          .get();
-      return snapshot.docs.length;
-    } on FirebaseException {
-      return null;
+          .snapshots(includeMetadataChanges: true)
+          .map(
+            (snapshot) => (
+              count: snapshot.docs.length,
+              isFromCache: snapshot.metadata.isFromCache,
+            ),
+          );
+    } on FirebaseException catch (error) {
+      return Stream.error(error);
     }
   }
 }

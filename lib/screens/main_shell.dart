@@ -102,6 +102,7 @@ class _MainShellState extends State<MainShell> {
                                   _buildingSync.preferredBuilding,
                               onChangeBuilding:
                                   _buildingSync.setPreferredBuilding,
+                              buildingIsSyncing: _buildingSync.isSyncing,
                             )
                           : LoginScreen(
                               viewModel: widget.authViewModel,
