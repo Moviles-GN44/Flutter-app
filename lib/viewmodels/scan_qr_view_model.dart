@@ -7,7 +7,7 @@ enum ScanStatus { searching, verified }
 
 class ScanQrViewModel extends ChangeNotifier {
   ScanQrViewModel({RestaurantRepository? repository})
-    : _repository = repository ?? const RestaurantRepository();
+    : _repository = repository ?? RestaurantRepository();
 
   static const darkLux = 15;
   static final _restaurantId = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
