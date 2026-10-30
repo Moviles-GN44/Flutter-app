@@ -29,6 +29,11 @@ const _restaurant = Restaurant(
 class _FakeRestaurants implements CampusRestaurantsRepository {
   @override
   Stream<List<Restaurant>> watchRestaurants() => Stream.value(const []);
+
+  @override
+  Stream<RestaurantsSnapshot> watchRestaurantsWithMetadata() => Stream.value(
+    const RestaurantsSnapshot(restaurants: [], isFromCache: false),
+  );
 }
 
 class _FakeTelemetry extends TelemetryService {

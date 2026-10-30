@@ -78,6 +78,35 @@ class _ExploreScreenState extends State<ExploreScreen> {
         bottom: false,
         child: Column(
           children: [
+            if (!_viewModel.isLoading && _viewModel.isFromCache)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                color: const Color(0xFFFFF3D6),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      size: 18,
+                      color: Color(0xFF8A6200),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Showing saved restaurant data. Updates may be pending.',
+                        style: TextStyle(
+                          color: Color(0xFF8A6200),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _ExploreHeader(
               categories: [_allCategories, ..._viewModel.categories],
               selectedCategory: filters.category ?? _allCategories,
@@ -97,6 +126,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 child: _viewModel.showingResults
                     ? _ResultsView(
+                        hasNoCachedRestaurants:
+                            _viewModel.hasNoCachedRestaurants,
                         results: _viewModel.results,
                         isLoading: _viewModel.isLoading,
                         errorMessage: _viewModel.errorMessage,
@@ -546,6 +577,7 @@ class _PaymentChip extends StatelessWidget {
 
 class _ResultsView extends StatelessWidget {
   const _ResultsView({
+    required this.hasNoCachedRestaurants,
     required this.results,
     required this.isLoading,
     required this.errorMessage,
@@ -562,6 +594,7 @@ class _ResultsView extends StatelessWidget {
   final VoidCallback onEditFilters;
   final VoidCallback onClearFilters;
   final ValueChanged<Restaurant> onOpen;
+  final bool hasNoCachedRestaurants;
 
   @override
   Widget build(BuildContext context) {
@@ -599,6 +632,10 @@ class _ResultsView extends StatelessWidget {
         Expanded(
           child: switch ((isLoading, errorMessage, count)) {
             (true, _, _) => const Center(child: CircularProgressIndicator()),
+            (_, _, 0) when hasNoCachedRestaurants => const _EmptyResults(
+              title: 'No saved restaurant data available',
+              detail: 'Connect to the internet to load restaurant information.',
+            ),
             (_, final String message?, 0) => _EmptyResults(
               title: message,
               detail: 'Check your connection and try again.',

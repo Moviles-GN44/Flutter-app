@@ -24,7 +24,7 @@ class ExploreViewModel extends ChangeNotifier {
        _suggestions = suggestionService ?? FilterSuggestionService(),
        _auth = auth {
     _subscription = (repository ?? CampusRestaurantsRepository())
-        .watchRestaurants()
+        .watchRestaurantsWithMetadata()
         .listen(_onRestaurants, onError: _onError);
     _location.addListener(notifyListeners);
     _auth?.addListener(_onAuthChanged);
@@ -49,13 +49,15 @@ class ExploreViewModel extends ChangeNotifier {
   int _sessionSearches = 0;
   bool _budgetAdjusted = false;
   bool _usedSuggestion = false;
-  late final StreamSubscription<List<Restaurant>> _subscription;
+  late final StreamSubscription<RestaurantsSnapshot> _subscription;
 
   List<Restaurant> _restaurants = const [];
   RestaurantFilters _filters = const RestaurantFilters();
   bool _showingResults = false;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isFromCache = false;
+  bool _hasReceivedSnapshot = false;
   String? _suggestionUserId;
   FilterSuggestion? _suggestion;
   bool _disposed = false;
@@ -64,6 +66,12 @@ class ExploreViewModel extends ChangeNotifier {
   bool get showingResults => _showingResults;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isFromCache => _isFromCache;
+
+  bool get hasReceivedSnapshot => _hasReceivedSnapshot;
+
+  bool get hasNoCachedRestaurants =>
+      _hasReceivedSnapshot && _isFromCache && _restaurants.isEmpty;
 
   /// The filters this student usually applies, while they differ from the
   /// ones already selected. Null when signed out or without a habit yet.
@@ -194,8 +202,12 @@ class ExploreViewModel extends ChangeNotifier {
       ? ({...values}..remove(value))
       : {...values, value};
 
-  void _onRestaurants(List<Restaurant> restaurants) {
-    _restaurants = restaurants;
+  void _onRestaurants(RestaurantsSnapshot snapshot) {
+    if (_disposed) return;
+
+    _restaurants = snapshot.restaurants;
+    _isFromCache = snapshot.isFromCache;
+    _hasReceivedSnapshot = true;
     _isLoading = false;
     _errorMessage = null;
     notifyListeners();
