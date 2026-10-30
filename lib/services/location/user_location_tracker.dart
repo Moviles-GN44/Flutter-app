@@ -35,7 +35,7 @@ class UserLocationTracker extends ChangeNotifier {
   static const _distance = Distance();
 
   final LocationStrategy _gpsStrategy;
-  final LocationStrategy _fallbackStrategy;
+  LocationStrategy _fallbackStrategy;
   LocationStrategy _strategy;
   StreamSubscription<LatLng>? _subscription;
   LatLng _location = defaultUserLocation;
@@ -62,6 +62,13 @@ class UserLocationTracker extends ChangeNotifier {
   void useBuilding(String building) {
     _gpsUnavailable = false;
     _use(BuildingLocationStrategy(building));
+  }
+
+  /// Sets the building used when the GPS cannot be used, e.g. the student's
+  /// preferred building after signing in.
+  void setFallbackBuilding(String building) {
+    _fallbackStrategy = BuildingLocationStrategy(building);
+    if (_gpsUnavailable) _use(_fallbackStrategy);
   }
 
   /// Copies [restaurant] with its distance and walking time measured from the

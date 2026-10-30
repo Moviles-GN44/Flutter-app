@@ -5,20 +5,30 @@ import 'package:flutter/foundation.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
 import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
+import 'package:uniandes_food/services/filter_suggestion_service.dart';
 import 'package:uniandes_food/services/location/user_location_tracker.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
+import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 
 class ExploreViewModel extends ChangeNotifier {
   ExploreViewModel({
     CampusRestaurantsRepository? repository,
     UserLocationTracker? locationTracker,
     TelemetryService? telemetryService,
-  }) : _location = locationTracker ?? UserLocationTracker.shared,
-       _telemetry = telemetryService ?? TelemetryService() {
+    FilterSuggestionService? suggestionService,
+    AuthViewModel? auth,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now,
+       _location = locationTracker ?? UserLocationTracker.shared,
+       _telemetry = telemetryService ?? TelemetryService(),
+       _suggestions = suggestionService ?? FilterSuggestionService(),
+       _auth = auth {
     _subscription = (repository ?? CampusRestaurantsRepository())
         .watchRestaurantsWithMetadata()
         .listen(_onRestaurants, onError: _onError);
     _location.addListener(notifyListeners);
+    _auth?.addListener(_onAuthChanged);
+    _onAuthChanged();
   }
 
   static const walkingTimeOptions = [5, 10, 15];
@@ -28,6 +38,17 @@ class ExploreViewModel extends ChangeNotifier {
 
   final UserLocationTracker _location;
   final TelemetryService _telemetry;
+  final FilterSuggestionService _suggestions;
+  final AuthViewModel? _auth;
+  final DateTime Function() _clock;
+
+  // BQ6: the current filter session, from the first filter the student
+  // touches until they open a restaurant.
+  DateTime? _sessionStart;
+  int _filterChanges = 0;
+  int _sessionSearches = 0;
+  bool _budgetAdjusted = false;
+  bool _usedSuggestion = false;
   late final StreamSubscription<RestaurantsSnapshot> _subscription;
 
   List<Restaurant> _restaurants = const [];
@@ -37,15 +58,41 @@ class ExploreViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _isFromCache = false;
   bool _hasReceivedSnapshot = false;
+  String? _suggestionUserId;
+  FilterSuggestion? _suggestion;
+  bool _disposed = false;
 
   RestaurantFilters get filters => _filters;
   bool get showingResults => _showingResults;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isFromCache => _isFromCache;
+
   bool get hasReceivedSnapshot => _hasReceivedSnapshot;
+
   bool get hasNoCachedRestaurants =>
       _hasReceivedSnapshot && _isFromCache && _restaurants.isEmpty;
+
+  /// The filters this student usually applies, while they differ from the
+  /// ones already selected. Null when signed out or without a habit yet.
+  FilterSuggestion? get suggestion {
+    final suggestion = _suggestion;
+    if (suggestion == null) return null;
+    final current = _filters.activeFilters.toSet();
+    return current.containsAll(suggestion.filters.activeFilters)
+        ? null
+        : suggestion;
+  }
+
+  /// Applies the suggested filters in one tap.
+  void useSuggestion() {
+    final suggestion = _suggestion;
+    if (suggestion == null) return;
+    _startSession();
+    _usedSuggestion = true;
+    _filters = suggestion.filters;
+    applyFilters();
+  }
 
   /// Where walking times are measured from: `you` with GPS, else a building.
   String get measuredFrom => _location.isUsingGps ? 'you' : _location.label;
@@ -71,7 +118,11 @@ class ExploreViewModel extends ChangeNotifier {
         _filters.maxWalkingMinutes == minutes ? null : minutes,
   );
 
-  void setBudget(int min, int max) => _update(minPrice: min, maxPrice: max);
+  void setBudget(int min, int max) {
+    // Dragging the slider fires many changes; it counts as one.
+    _budgetAdjusted = true;
+    _update(minPrice: min, maxPrice: max, countsAsChange: false);
+  }
 
   void toggleDietary(DietaryOption option) =>
       _update(dietary: _toggled(_filters.dietary, option));
@@ -80,6 +131,8 @@ class ExploreViewModel extends ChangeNotifier {
       _update(paymentMethods: _toggled(_filters.paymentMethods, method));
 
   void applyFilters() {
+    _startSession();
+    _sessionSearches++;
     _showingResults = true;
     notifyListeners();
     _trackAppliedFilters();
@@ -99,6 +152,7 @@ class ExploreViewModel extends ChangeNotifier {
           value: filter.value,
           applyId: applyId,
           filtersCount: applied.length,
+          userId: _auth?.currentUser?.uid,
         ),
       );
     }
@@ -107,9 +161,13 @@ class ExploreViewModel extends ChangeNotifier {
   void editFilters() {
     _showingResults = false;
     notifyListeners();
+    // The search just made may have changed the student's habits.
+    if (_suggestionUserId case final userId?) _loadSuggestion(userId);
   }
 
   void clearFilters() {
+    _startSession();
+    _filterChanges++;
     _filters = const RestaurantFilters();
     _showingResults = false;
     notifyListeners();
@@ -122,7 +180,10 @@ class ExploreViewModel extends ChangeNotifier {
     int? maxPrice,
     Set<DietaryOption>? dietary,
     Set<String>? paymentMethods,
+    bool countsAsChange = true,
   }) {
+    _startSession();
+    if (countsAsChange) _filterChanges++;
     final f = _filters;
     _filters = RestaurantFilters(
       category: category != null ? category() : f.category,
@@ -142,6 +203,8 @@ class ExploreViewModel extends ChangeNotifier {
       : {...values, value};
 
   void _onRestaurants(RestaurantsSnapshot snapshot) {
+    if (_disposed) return;
+
     _restaurants = snapshot.restaurants;
     _isFromCache = snapshot.isFromCache;
     _hasReceivedSnapshot = true;
@@ -156,8 +219,55 @@ class ExploreViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The student opened [restaurant] from the results: the filter session
+  /// is over and BQ6 records how long it took.
+  void openRestaurant(Restaurant restaurant) {
+    final start = _sessionStart;
+    if (start == null) return;
+
+    unawaited(
+      _telemetry.trackFilterSession(
+        durationMs: _clock().difference(start).inMilliseconds,
+        filtersCount: _filters.activeCount,
+        filterChanges: _filterChanges + (_budgetAdjusted ? 1 : 0),
+        searches: _sessionSearches,
+        usedSuggestion: _usedSuggestion,
+        restaurantId: restaurant.id,
+        userId: _auth?.currentUser?.uid,
+      ),
+    );
+    _sessionStart = null;
+  }
+
+  void _startSession() {
+    if (_sessionStart != null) return;
+    _sessionStart = _clock();
+    _filterChanges = 0;
+    _sessionSearches = 0;
+    _budgetAdjusted = false;
+    _usedSuggestion = false;
+  }
+
+  void _onAuthChanged() {
+    final userId = _auth?.currentUser?.uid;
+    if (userId == _suggestionUserId) return;
+    _suggestionUserId = userId;
+    _suggestion = null;
+    notifyListeners();
+    if (userId != null) _loadSuggestion(userId);
+  }
+
+  Future<void> _loadSuggestion(String userId) async {
+    final suggestion = await _suggestions.suggestFor(userId);
+    if (_disposed || userId != _suggestionUserId) return;
+    _suggestion = suggestion;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
+    _auth?.removeListener(_onAuthChanged);
     _location.removeListener(notifyListeners);
     _subscription.cancel();
     super.dispose();

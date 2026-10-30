@@ -29,18 +29,23 @@ class CampusRestaurantsRepository {
   }
 
   /// Includes Firestore metadata to identify cached data.
+
   Stream<RestaurantsSnapshot> watchRestaurantsWithMetadata() {
-    return _firestore
-        .collection('restaurants')
-        .snapshots(includeMetadataChanges: true)
-        .map(
-          (snapshot) => RestaurantsSnapshot(
-            restaurants: [
-              for (final doc in snapshot.docs)
-                Restaurant.fromFirestore(doc.id, doc.data()),
-            ],
-            isFromCache: snapshot.metadata.isFromCache,
-          ),
-        );
+    try {
+      return _firestore
+          .collection('restaurants')
+          .snapshots(includeMetadataChanges: true)
+          .map(
+            (snapshot) => RestaurantsSnapshot(
+              restaurants: [
+                for (final doc in snapshot.docs)
+                  Restaurant.fromFirestore(doc.id, doc.data()),
+              ],
+              isFromCache: snapshot.metadata.isFromCache,
+            ),
+          );
+    } on FirebaseException catch (error) {
+      return Stream<RestaurantsSnapshot>.error(error);
+    }
   }
 }
