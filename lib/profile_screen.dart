@@ -1,11 +1,31 @@
 import 'package:flutter/material.dart';
 
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key, this.showBottomNav = true, this.onLogout});
+import 'package:uniandes_food/data/campus.dart';
+import 'package:uniandes_food/models/app_user.dart';
+import 'package:uniandes_food/viewmodels/profile_view_model.dart';
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.onLogout,
+    this.user,
+    this.preferredBuilding,
+    this.onChangeBuilding,
+  });
 
   /// The shell provides its own bottom bar, so it hides this one.
   final bool showBottomNav;
   final VoidCallback? onLogout;
+
+  /// The signed-in student. Null only in the standalone preview.
+  final AppUser? user;
+
+  /// Building code saved in the student's account (`ML`, `SD`…).
+  final String? preferredBuilding;
+
+  /// Saves a new preferred building in the student's account.
+  final ValueChanged<String>? onChangeBuilding;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -16,7 +36,116 @@ class ProfileScreen extends StatelessWidget {
   static const Color dividerColor = Color(0xFFE5E8EC);
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  ProfileViewModel? _viewModel;
+
+  static const backgroundColor = ProfileScreen.backgroundColor;
+  static const primaryOrange = ProfileScreen.primaryOrange;
+  static const primaryText = ProfileScreen.primaryText;
+  static const secondaryText = ProfileScreen.secondaryText;
+
+  @override
+  void initState() {
+    super.initState();
+    _createViewModel();
+  }
+
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user?.uid != widget.user?.uid) {
+      _viewModel?.dispose();
+      _createViewModel();
+    }
+  }
+
+  void _createViewModel() {
+    final user = widget.user;
+    _viewModel = user == null ? null : ProfileViewModel(user: user);
+  }
+
+  Future<void> _chooseBuilding() async {
+    final current = widget.preferredBuilding;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  'Preferred building',
+                  style: TextStyle(
+                    color: primaryText,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Used for walking times when GPS is not available.',
+                  style: TextStyle(color: secondaryText, fontSize: 13),
+                ),
+              ),
+              for (final entry in campusBuildingNames.entries)
+                ListTile(
+                  leading: const Icon(
+                    Icons.apartment_rounded,
+                    color: Color(0xFF12897E),
+                  ),
+                  title: Text(entry.value),
+                  trailing: entry.key == current
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF12897E),
+                        )
+                      : null,
+                  selected: entry.key == current,
+                  selectedColor: const Color(0xFF0B5F57),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  onTap: () => Navigator.of(context).pop(entry.key),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null || choice == current) return;
+    widget.onChangeBuilding?.call(choice);
+  }
+
+  @override
+  void dispose() {
+    _viewModel?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final viewModel = _viewModel;
+    if (viewModel == null) return _buildScreen(null);
+    return ListenableBuilder(
+      listenable: viewModel,
+      builder: (context, _) => _buildScreen(viewModel),
+    );
+  }
+
+  Widget _buildScreen(ProfileViewModel? viewModel) {
+    final building = widget.preferredBuilding;
+    final reviewCount = viewModel?.reviewCount;
+
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
@@ -39,13 +168,14 @@ class ProfileScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(28, 38, 28, 28),
                     child: Column(
                       children: [
-                        const _ProfileAvatar(),
+                        _ProfileAvatar(initials: viewModel?.initials ?? '?'),
 
                         const SizedBox(height: 17),
 
-                        const Text(
-                          'Maria Ramirez',
-                          style: TextStyle(
+                        Text(
+                          viewModel?.displayName ?? 'Guest',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
                             color: primaryText,
                             fontSize: 21,
                             fontWeight: FontWeight.w700,
@@ -54,9 +184,10 @@ class ProfileScreen extends StatelessWidget {
 
                         const SizedBox(height: 6),
 
-                        const Text(
-                          'Member since 2024',
-                          style: TextStyle(
+                        Text(
+                          widget.user?.email ?? 'Not signed in',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
                             color: secondaryText,
                             fontSize: 13,
                             fontWeight: FontWeight.w400,
@@ -65,28 +196,21 @@ class ProfileScreen extends StatelessWidget {
 
                         const SizedBox(height: 37),
 
-                        const _StatisticsRow(),
+                        _StatisticsRow(
+                          reviews: reviewCount == null ? '–' : '$reviewCount',
+                          building: building ?? '–',
+                          buildingName: campusBuildingNames[building],
+                        ),
 
                         const SizedBox(height: 34),
 
-                        const _ProfileMenuItem(
-                          icon: Icons.star_border_rounded,
-                          title: 'Favorites',
-                        ),
-
-                        const _ProfileMenuItem(
-                          icon: Icons.access_time_rounded,
-                          title: 'Visit History',
-                        ),
-
-                        const _ProfileMenuItem(
-                          icon: Icons.tune_rounded,
-                          title: 'Preferences',
-                        ),
-
-                        const _ProfileMenuItem(
-                          icon: Icons.notifications_none_rounded,
-                          title: 'Notifications',
+                        _ProfileMenuItem(
+                          icon: Icons.apartment_rounded,
+                          title: 'Preferred building',
+                          value: campusBuildingNames[building] ?? 'Not set',
+                          onTap: widget.onChangeBuilding == null
+                              ? null
+                              : _chooseBuilding,
                         ),
 
                         const SizedBox(height: 20),
@@ -95,7 +219,7 @@ class ProfileScreen extends StatelessWidget {
                           width: double.infinity,
                           height: 48,
                           child: ElevatedButton(
-                            onPressed: onLogout,
+                            onPressed: widget.onLogout,
                             style: ElevatedButton.styleFrom(
                               elevation: 0,
                               backgroundColor: primaryOrange,
@@ -122,7 +246,7 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: showBottomNav
+      bottomNavigationBar: widget.showBottomNav
           ? const _AppBottomNavigationBar(selectedIndex: 4)
           : null,
     );
@@ -156,7 +280,9 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar();
+  const _ProfileAvatar({required this.initials});
+
+  final String initials;
 
   @override
   Widget build(BuildContext context) {
@@ -168,9 +294,9 @@ class _ProfileAvatar extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
-      child: const Text(
-        'MR',
-        style: TextStyle(
+      child: Text(
+        initials,
+        style: const TextStyle(
           color: Color(0xFF28221A),
           fontSize: 31,
           fontWeight: FontWeight.w500,
@@ -181,28 +307,31 @@ class _ProfileAvatar extends StatelessWidget {
 }
 
 class _StatisticsRow extends StatelessWidget {
-  const _StatisticsRow();
+  const _StatisticsRow({
+    required this.reviews,
+    required this.building,
+    this.buildingName,
+  });
+
+  final String reviews;
+  final String building;
+  final String? buildingName;
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       children: [
         Expanded(
-          child: _StatisticItem(
-            number: '32',
-            label: 'Reviews',
-          ),
+          child: _StatisticItem(number: reviews, label: 'Reviews'),
         ),
         Expanded(
-          child: _StatisticItem(
-            number: '14',
-            label: 'Favorites',
-          ),
-        ),
-        Expanded(
-          child: _StatisticItem(
-            number: '210',
-            label: 'Points',
+          child: Semantics(
+            label: 'Preferred building: ${buildingName ?? 'none'}',
+            excludeSemantics: true,
+            child: _StatisticItem(
+              number: building,
+              label: 'Preferred building',
+            ),
           ),
         ),
       ],
@@ -214,10 +343,7 @@ class _StatisticItem extends StatelessWidget {
   final String number;
   final String label;
 
-  const _StatisticItem({
-    required this.number,
-    required this.label,
-  });
+  const _StatisticItem({required this.number, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -248,18 +374,20 @@ class _StatisticItem extends StatelessWidget {
 class _ProfileMenuItem extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? value;
+  final VoidCallback? onTap;
 
   const _ProfileMenuItem({
     required this.icon,
     required this.title,
+    this.value,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {
-        // Navigation can be connected later.
-      },
+      onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
         height: 44,
@@ -267,11 +395,7 @@ class _ProfileMenuItem extends StatelessWidget {
           children: [
             SizedBox(
               width: 30,
-              child: Icon(
-                icon,
-                size: 20,
-                color: const Color(0xFF777C82),
-              ),
+              child: Icon(icon, size: 20, color: const Color(0xFF777C82)),
             ),
             const SizedBox(width: 4),
             Expanded(
@@ -284,6 +408,15 @@ class _ProfileMenuItem extends StatelessWidget {
                 ),
               ),
             ),
+            if (value case final value?)
+              Text(
+                value,
+                style: const TextStyle(
+                  color: ProfileScreen.primaryText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             const Icon(
               Icons.chevron_right_rounded,
               color: Color(0xFF868B90),
@@ -299,9 +432,7 @@ class _ProfileMenuItem extends StatelessWidget {
 class _AppBottomNavigationBar extends StatelessWidget {
   final int selectedIndex;
 
-  const _AppBottomNavigationBar({
-    required this.selectedIndex,
-  });
+  const _AppBottomNavigationBar({required this.selectedIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -310,10 +441,7 @@ class _AppBottomNavigationBar extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
-          top: BorderSide(
-            color: ProfileScreen.dividerColor,
-            width: 1,
-          ),
+          top: BorderSide(color: ProfileScreen.dividerColor, width: 1),
         ),
       ),
       child: SafeArea(
@@ -337,9 +465,7 @@ class _AppBottomNavigationBar extends StatelessWidget {
                     isSelected: selectedIndex == 1,
                   ),
                 ),
-                const Expanded(
-                  child: SizedBox(),
-                ),
+                const Expanded(child: SizedBox()),
                 Expanded(
                   child: _NavigationItem(
                     icon: Icons.favorite_border_rounded,
@@ -418,19 +544,14 @@ class _NavigationItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: itemColor,
-            ),
+            Icon(icon, size: 20, color: itemColor),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 color: itemColor,
                 fontSize: 9,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ],

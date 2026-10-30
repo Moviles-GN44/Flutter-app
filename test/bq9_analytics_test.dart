@@ -9,10 +9,22 @@ import 'package:uniandes_food/services/location/user_location_tracker.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/explore_view_model.dart';
 
+
 class _FakeRestaurants implements CampusRestaurantsRepository {
   @override
-  Stream<List<Restaurant>> watchRestaurants() => Stream.value(const []);
+  Stream<List<Restaurant>> watchRestaurants() =>
+      Stream.value(const []);
+
+  @override
+  Stream<RestaurantsSnapshot> watchRestaurantsWithMetadata() =>
+      Stream.value(
+        const RestaurantsSnapshot(
+          restaurants: [],
+          isFromCache: false,
+        ),
+      );
 }
+
 
 class _FakeTelemetry extends TelemetryService {
   final events = <String>[];
@@ -24,6 +36,7 @@ class _FakeTelemetry extends TelemetryService {
     required String value,
     required String applyId,
     required int filtersCount,
+    String? userId,
   }) async {
     events.add('$filterType:$value:$filtersCount');
     applyIds.add(applyId);

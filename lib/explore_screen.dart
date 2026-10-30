@@ -4,14 +4,23 @@ import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
 import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:uniandes_food/utils/currency.dart';
+import 'package:uniandes_food/services/filter_suggestion_service.dart';
+import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 import 'package:uniandes_food/viewmodels/explore_view_model.dart';
 
 class ExploreScreen extends StatefulWidget {
-  const ExploreScreen({super.key, this.showBottomNav = true});
+  const ExploreScreen({
+    super.key,
+    this.showBottomNav = true,
+    this.authViewModel,
+  });
 
   /// The screen brings its own navigation bar when it runs on its own
   /// (preview mode). Inside [MainShell] the shell already provides one.
   final bool showBottomNav;
+
+  /// The session, used to suggest the student's usual filters.
+  final AuthViewModel? authViewModel;
 
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color primaryOrange = Color(0xFFFFAB00);
@@ -34,7 +43,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    _viewModel = ExploreViewModel();
+    _viewModel = ExploreViewModel(auth: widget.authViewModel);
   }
 
   @override
@@ -44,6 +53,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _openRestaurant(Restaurant restaurant) {
+    _viewModel.openRestaurant(restaurant);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
@@ -68,6 +78,35 @@ class _ExploreScreenState extends State<ExploreScreen> {
         bottom: false,
         child: Column(
           children: [
+            if (!_viewModel.isLoading && _viewModel.isFromCache)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                color: const Color(0xFFFFF3D6),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      size: 18,
+                      color: Color(0xFF8A6200),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Showing saved restaurant data. Updates may be pending.',
+                        style: TextStyle(
+                          color: Color(0xFF8A6200),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _ExploreHeader(
               categories: [_allCategories, ..._viewModel.categories],
               selectedCategory: filters.category ?? _allCategories,
@@ -87,6 +126,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 child: _viewModel.showingResults
                     ? _ResultsView(
+                        hasNoCachedRestaurants:
+                            _viewModel.hasNoCachedRestaurants,
                         results: _viewModel.results,
                         isLoading: _viewModel.isLoading,
                         errorMessage: _viewModel.errorMessage,
@@ -119,6 +160,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_viewModel.suggestion case final suggestion?) ...[
+            _SuggestionCard(
+              suggestion: suggestion,
+              onApply: _viewModel.useSuggestion,
+            ),
+            const SizedBox(height: 22),
+          ],
+
           const Text(
             'Advanced Filters',
             style: TextStyle(
@@ -528,6 +577,7 @@ class _PaymentChip extends StatelessWidget {
 
 class _ResultsView extends StatelessWidget {
   const _ResultsView({
+    required this.hasNoCachedRestaurants,
     required this.results,
     required this.isLoading,
     required this.errorMessage,
@@ -544,6 +594,7 @@ class _ResultsView extends StatelessWidget {
   final VoidCallback onEditFilters;
   final VoidCallback onClearFilters;
   final ValueChanged<Restaurant> onOpen;
+  final bool hasNoCachedRestaurants;
 
   @override
   Widget build(BuildContext context) {
@@ -581,6 +632,10 @@ class _ResultsView extends StatelessWidget {
         Expanded(
           child: switch ((isLoading, errorMessage, count)) {
             (true, _, _) => const Center(child: CircularProgressIndicator()),
+            (_, _, 0) when hasNoCachedRestaurants => const _EmptyResults(
+              title: 'No saved restaurant data available',
+              detail: 'Connect to the internet to load restaurant information.',
+            ),
             (_, final String message?, 0) => _EmptyResults(
               title: message,
               detail: 'Check your connection and try again.',
@@ -806,6 +861,96 @@ class _EmptyResults extends StatelessWidget {
               const SizedBox(height: 16),
               OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Smart feature: the filters this student keeps using, one tap away.
+class _SuggestionCard extends StatelessWidget {
+  const _SuggestionCard({required this.suggestion, required this.onApply});
+
+  final FilterSuggestion suggestion;
+  final VoidCallback onApply;
+
+  static String _describe(RestaurantFilters filters) => [
+    ?filters.category,
+    if (filters.maxWalkingMinutes case final minutes?) '< $minutes min',
+    if (filters.hasBudget)
+      '${formatCop(filters.minPrice)} – ${formatCop(filters.maxPrice)}',
+    for (final option in filters.dietary) option.label,
+    ...filters.paymentMethods,
+  ].join(' · ');
+
+  @override
+  Widget build(BuildContext context) {
+    final searches = suggestion.basedOn;
+    final description = _describe(suggestion.filters);
+
+    return Semantics(
+      container: true,
+      label:
+          'Suggested for you: $description, based on your last '
+          '$searches searches',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0F5F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ExploreScreen.teal),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xFF12897E),
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Suggested for you',
+                    style: TextStyle(
+                      color: Color(0xFF0B5F57),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: ExploreScreen.primaryText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Based on your last $searches searches',
+                    style: const TextStyle(
+                      color: ExploreScreen.secondaryText,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onApply,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF0B5F57),
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              child: const Text('Apply'),
+            ),
           ],
         ),
       ),
