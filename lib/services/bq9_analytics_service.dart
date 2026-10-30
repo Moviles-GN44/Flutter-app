@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// Answer to BQ9: how often students use the allergen and dietary filters
 /// compared to the other filters, and which restrictions they pick the most.
@@ -69,7 +70,9 @@ class BQ9AnalyticsService {
           .collection('telemetry_events')
           .where('eventName', isEqualTo: 'filter_applied')
           .get();
-      return aggregate(snapshot.docs.map((document) => document.data()));
+      // isolate
+      final events = [for (final document in snapshot.docs) document.data()];
+      return await compute(aggregate, events);
     } on FirebaseException {
       return aggregate(const []);
     }

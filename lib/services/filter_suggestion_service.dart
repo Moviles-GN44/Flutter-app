@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/restaurant_filters.dart';
 
@@ -40,7 +41,9 @@ class FilterSuggestionService {
           .where('eventName', isEqualTo: 'filter_applied')
           .where('params.userId', isEqualTo: userId)
           .get();
-      return suggest(snapshot.docs.map((document) => document.data()));
+      // isolate
+      final events = [for (final document in snapshot.docs) document.data()];
+      return await compute(suggest, events);
     } on FirebaseException {
       return null;
     }

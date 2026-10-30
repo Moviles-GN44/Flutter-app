@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 /// Answer to BQ6: how long students spend setting filters (price, distance,
 /// dietary preferences…) before selecting a restaurant.
@@ -76,7 +77,9 @@ class BQ6AnalyticsService {
           .collection('telemetry_events')
           .where('eventName', isEqualTo: 'filter_session_completed')
           .get();
-      return aggregate(snapshot.docs.map((document) => document.data()));
+      // isolate
+      final events = [for (final document in snapshot.docs) document.data()];
+      return await compute(aggregate, events);
     } on FirebaseException {
       return aggregate(const []);
     }
