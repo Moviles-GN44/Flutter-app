@@ -115,4 +115,24 @@ class TelemetryService {
       return;
     }
   }
+
+  /// BQ7: records when a student opens one of the main app features.
+  Future<void> trackFeatureOpened({
+    required String feature,
+    String? userId,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': 'feature_opened',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {'feature': feature, 'userId': ?userId},
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
 }
