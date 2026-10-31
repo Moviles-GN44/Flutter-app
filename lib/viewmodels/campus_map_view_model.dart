@@ -7,13 +7,19 @@ import 'package:uniandes_food/data/campus.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/services/location/user_location_tracker.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 
 class CampusMapViewModel extends ChangeNotifier {
   CampusMapViewModel({
     CampusRestaurantsRepository? repository,
     UserLocationTracker? locationTracker,
+    TelemetryService? telemetryService,
+    DateTime Function()? now,
   }) : _repository = repository ?? CampusRestaurantsRepository(),
-       _location = locationTracker ?? UserLocationTracker.shared {
+       _location = locationTracker ?? UserLocationTracker.shared,
+       _telemetryService = telemetryService ?? TelemetryService(),
+       _now = now ?? DateTime.now {
+    _loadStartedAt = _now();
     _subscription = _repository.watchRestaurantsWithMetadata().listen(
       _onRestaurants,
       onError: _onError,
@@ -27,6 +33,11 @@ class CampusMapViewModel extends ChangeNotifier {
   // in UserLocationTracker, shared with the Explore screen.
   final UserLocationTracker _location;
   late final StreamSubscription<RestaurantsSnapshot> _subscription;
+
+  final TelemetryService _telemetryService;
+  final DateTime Function() _now;
+  late final DateTime _loadStartedAt;
+  bool _loadTracked = false;
 
   // "Near you" means reachable on foot in this many minutes, and "in a
   // building" means within this many meters of its entrance.
@@ -116,6 +127,23 @@ class CampusMapViewModel extends ChangeNotifier {
     _isLoading = false;
     _errorMessage = null;
     notifyListeners();
+    if (!hasNoCachedRestaurants) {
+      _trackLoad('map_load_completed', fromCache: snapshot.isFromCache);
+    }
+  }
+
+  void onAppHidden() => _trackLoad('map_load_abandoned');
+
+  void _trackLoad(String eventName, {bool? fromCache}) {
+    if (_loadTracked) return;
+    _loadTracked = true;
+    unawaited(
+      _telemetryService.trackMapLoad(
+        eventName: eventName,
+        durationMs: _now().difference(_loadStartedAt).inMilliseconds,
+        fromCache: fromCache,
+      ),
+    );
   }
 
   void _onError(Object error) {

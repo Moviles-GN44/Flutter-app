@@ -29,7 +29,7 @@ class CampusMap extends StatefulWidget {
   State<CampusMap> createState() => _CampusMapState();
 }
 
-class _CampusMapState extends State<CampusMap> {
+class _CampusMapState extends State<CampusMap> with WidgetsBindingObserver {
   static const _tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const _userAgent = 'com.uniandesfood';
   static const _pinBoxWidth = 160.0;
@@ -69,6 +69,7 @@ class _CampusMapState extends State<CampusMap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _viewModel = CampusMapViewModel()..addListener(_onViewModelChanged);
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
       _onConnectivityChanged,
@@ -112,6 +113,11 @@ class _CampusMapState extends State<CampusMap> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden) _viewModel.onAppHidden();
+  }
+
+  @override
   void didUpdateWidget(CampusMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     final selected = widget.selected;
@@ -122,6 +128,7 @@ class _CampusMapState extends State<CampusMap> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectivitySubscription?.cancel();
     _viewModel
       ..removeListener(_onViewModelChanged)
