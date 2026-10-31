@@ -7,8 +7,11 @@ import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/auth_repository.dart';
+import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/repositories/restaurant_repository.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
+import 'package:uniandes_food/services/location/building_location_strategy.dart';
+import 'package:uniandes_food/services/location/user_location_tracker.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
@@ -78,11 +81,35 @@ class _FakeConnectivity implements Connectivity {
   Future<List<ConnectivityResult>> checkConnectivity() async => [_current];
 }
 
+class _FakeCampusRestaurantsRepository implements CampusRestaurantsRepository {
+  _FakeCampusRestaurantsRepository(this.restaurants);
+
+  final List<Restaurant> restaurants;
+
+  @override
+  Stream<List<Restaurant>> watchRestaurants() => Stream.value(restaurants);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Restaurant _campusRestaurant(String id, double latitudeOffset) =>
+    Restaurant.fromFirestore(id, {
+      'name': id,
+      'latitude': 4.6029 + latitudeOffset,
+      'longitude': -74.0650,
+    });
+
 ScanQrViewModel _scanViewModel({
   _FakeRestaurantRepository? repository,
   _FakeConnectivity? connectivity,
+  List<Restaurant> campusRestaurants = const [],
 }) => ScanQrViewModel(
   repository: repository ?? _FakeRestaurantRepository(),
+  campusRepository: _FakeCampusRestaurantsRepository(campusRestaurants),
+  locationTracker: UserLocationTracker(
+    gpsStrategy: const BuildingLocationStrategy('ML'),
+  ),
   connectivity: connectivity ?? _FakeConnectivity(online: true),
 );
 
@@ -219,6 +246,26 @@ void main() {
       viewModel.errorMessage,
       'This QR code is not from a campus restaurant.',
     );
+  });
+
+  test('Manual search lists the four closest campus restaurants', () async {
+    final viewModel = _scanViewModel(
+      campusRestaurants: [
+        _campusRestaurant('far', 0.005),
+        _campusRestaurant('closest', 0.0005),
+        _campusRestaurant('third', 0.002),
+        _campusRestaurant('second', 0.001),
+        _campusRestaurant('fourth', 0.003),
+      ],
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(viewModel.nearbyRestaurants.map((r) => r.id), [
+      'closest',
+      'second',
+      'third',
+      'fourth',
+    ]);
   });
 
   test('Low light is detected and cleared by the light sensor', () {

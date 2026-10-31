@@ -30,10 +30,14 @@ class ReviewRepository {
           .collection('reviews')
           .where('restaurantId', isEqualTo: restaurantId)
           .get();
-      final reviews = snapshot.docs.map((doc) {
-        final createdAt = doc.data()['createdAt'] as Timestamp?;
-        return Review.fromMap(doc.data(), createdAt: createdAt?.toDate());
-      }).toList();
+      final reviews = [
+        for (final doc in snapshot.docs)
+          if (WaitTime.values.asNameMap().containsKey(doc.data()['waitTime']))
+            Review.fromMap(
+              doc.data(),
+              createdAt: (doc.data()['createdAt'] as Timestamp?)?.toDate(),
+            ),
+      ];
       return (reviews: reviews, isFromCache: snapshot.metadata.isFromCache);
     } on FirebaseException {
       return (reviews: const <Review>[], isFromCache: false);

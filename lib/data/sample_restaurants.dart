@@ -316,12 +316,6 @@ Restaurant? fasterAlternativeTo(Restaurant restaurant) {
     return prices.reduce((a, b) => a + b) / prices.length;
   }
 
-List<Restaurant> nearbyRestaurants({int limit = 4}) {
-  final sorted = [...sampleRestaurants]
-    ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
-  return sorted.take(limit).toList();
-}
-
 Restaurant? restaurantByName(String name) {
   for (final restaurant in sampleRestaurants) {
     if (restaurant.name == name) return restaurant;

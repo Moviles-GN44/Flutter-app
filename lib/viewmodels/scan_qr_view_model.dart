@@ -4,15 +4,27 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/repositories/restaurant_repository.dart';
+import 'package:uniandes_food/services/location/user_location_tracker.dart';
 
 enum ScanStatus { searching, verified }
 
 class ScanQrViewModel extends ChangeNotifier {
   ScanQrViewModel({
     RestaurantRepository? repository,
+    CampusRestaurantsRepository? campusRepository,
+    UserLocationTracker? locationTracker,
     Connectivity? connectivity,
-  }) : _repository = repository ?? RestaurantRepository() {
+  }) : _repository = repository ?? RestaurantRepository(),
+       _location = locationTracker ?? UserLocationTracker.shared {
+    _restaurantsSubscription =
+        (campusRepository ?? CampusRestaurantsRepository())
+            .watchRestaurants()
+            .listen(
+              (restaurants) => _restaurants = restaurants,
+              onError: (Object _) {},
+            );
     final source = connectivity ?? Connectivity();
     _connectivitySubscription = source.onConnectivityChanged.listen(
       _onConnectivityChanged,
@@ -27,9 +39,15 @@ class ScanQrViewModel extends ChangeNotifier {
   static const darkLux = 15;
   static final _restaurantId = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
 
+  static const _nearbyLimit = 4;
+
   final RestaurantRepository _repository;
+  final UserLocationTracker _location;
+  late final StreamSubscription<List<Restaurant>> _restaurantsSubscription;
   late final StreamSubscription<List<ConnectivityResult>>
   _connectivitySubscription;
+
+  List<Restaurant> _restaurants = const [];
 
   ScanStatus _status = ScanStatus.searching;
   Restaurant? _restaurant;
@@ -45,7 +63,11 @@ class ScanQrViewModel extends ChangeNotifier {
   Restaurant? get restaurant => _restaurant;
   String? get errorMessage => _errorMessage;
 
-  List<Restaurant> get nearbyRestaurants => _repository.getNearbyRestaurants();
+  List<Restaurant> get nearbyRestaurants =>
+      ([for (final r in _restaurants) _location.measure(r)]
+            ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters)))
+          .take(_nearbyLimit)
+          .toList();
 
   Future<bool> onCodeDetected(String? rawValue) async {
     final id = rawValue?.trim() ?? '';
@@ -95,6 +117,7 @@ class ScanQrViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _restaurantsSubscription.cancel();
     _connectivitySubscription.cancel();
     super.dispose();
   }
