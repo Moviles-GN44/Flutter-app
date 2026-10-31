@@ -1,270 +1,307 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UniandesFood Analytics</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Uniandes Food - Dashboard BQs</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  :root {
-    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #667085;
-    --border: #e4e7ec; --qr: #2563eb; --manual: #f59e0b;
-    --bq3: #0d9488; --bq3-soft: #99d5cf;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0f1219; --card: #181c26; --text: #e6e9ef; --muted: #98a2b3;
-      --border: #2a3040; --qr: #60a5fa; --manual: #fbbf24;
-      --bq3: #2dd4bf; --bq3-soft: #1f5a55;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 48px; }
-  h1 { font-size: 24px; margin: 0 0 4px; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
-  .muted { color: var(--muted); font-size: 13px; }
-  .tabs { display: flex; gap: 6px; margin: 20px 0 4px; border-bottom: 1px solid var(--border); }
-  .tab {
-    background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
-    padding: 8px 14px; color: var(--muted); font-weight: 600;
-  }
-  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
-  .question { margin: 16px 0 0; font-size: 18px; font-weight: 650; }
-  .pipeline {
-    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-    margin: 14px 0 20px; font-size: 13px;
-  }
-  .step {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 10px;
-  }
-  .step code { font-size: 12px; }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .grid.wide { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); margin-top: 14px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-  .kpi { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
-  .chart { position: relative; height: 280px; }
-  .error { background: #fee4e2; color: #912018; padding: 12px; border-radius: 8px; display: none; margin-bottom: 14px; }
-  button {
-    background: var(--card); color: var(--text); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit;
-  }
-  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-  [hidden] { display: none !important; }
-  @media (max-width: 480px) { .grid.wide { grid-template-columns: 1fr; } }
+  body { margin: 0; background: #0d1117; color: #e6edf3; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+  header { background: #161b22; border-bottom: 1px solid #30363d; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header p { margin: 2px 0 0; color: #8b949e; font-size: 13px; }
+  #last-updated { color: #8b949e; font-size: 13px; }
+  button { padding: 6px 14px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #30363d; }
+  main { max-width: 1150px; margin: 0 auto; padding: 20px 16px 40px; }
+  .totals { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .total { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 16px; flex: 1; min-width: 160px; color: #8b949e; }
+  .total b { display: block; font-size: 24px; margin-top: 4px; color: #e6edf3; }
+  .bq { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .bq h2 { font-size: 16px; margin: 0 0 4px; }
+  .bq .question { margin: 0 0 10px; color: #8b949e; }
+  .bq .result { margin: 0 0 12px; }
+  .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .chart h3 { font-size: 13px; font-weight: normal; color: #8b949e; margin: 0 0 6px; }
+  .chart div { height: 220px; position: relative; }
+  #error { display: none; background: #3d1a1a; border: 1px solid #6e2b2b; color: #ffa198; padding: 10px; border-radius: 4px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #21262d; }
+  th { background: #0d1117; color: #8b949e; }
+  td.params { font-family: Consolas, monospace; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
+<header>
+  <div>
+    <h1>Uniandes Food - Dashboard de Business Questions</h1>
+    <p>ISIS-3510 · Grupo GN-44 · Apps Kotlin y Flutter · Datos de Firestore (telemetry_events)</p>
+  </div>
+  <div><span id="last-updated">Actualizado: --</span> <button id="refresh">Actualizar</button></div>
+</header>
+
 <main>
-  <header>
-    <div>
-      <h1>UniandesFood · Analytics</h1>
-      <div class="muted" id="generatedAt">Cargando…</div>
-    </div>
-    <button id="refresh">Actualizar</button>
-  </header>
+  <div id="error"></div>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" data-tab="bq3">BQ3 · Criterios de comparación</button>
-    <button class="tab" role="tab" data-tab="bq5">BQ5 · Embudo de reseñas</button>
-  </nav>
+  <div class="totals">
+    <div class="total">Eventos totales<b id="kpi-total">0</b></div>
+    <div class="total">Eventos Flutter<b id="kpi-flutter">0</b></div>
+    <div class="total">Eventos Kotlin<b id="kpi-kotlin">0</b></div>
+  </div>
 
-  <div id="error" class="error"></div>
+  <div class="bq">
+    <h2>BQ2 · Felipe · Flutter</h2>
+    <p class="question">¿Cuánto tarda el mapa en cargar los restaurantes cercanos y qué porcentaje de estudiantes cierra la app antes de que terminen de cargar?</p>
+    <p class="result">Carga promedio: <b id="bq2-avg">N/A</b> · Mediana: <b id="bq2-median">N/A</b> · Abandonan antes de cargar: <b id="bq2-abandon">N/A</b> · Espera promedio antes de abandonar: <b id="bq2-wait">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Tiempo de carga</h3><div><canvas id="chart-bq2-buckets"></canvas></div></div>
+      <div class="chart"><h3>Carga promedio desde caché y desde servidor (s)</h3><div><canvas id="chart-bq2-source"></canvas></div></div>
+      <div class="chart"><h3>Cargas completadas y abandonadas</h3><div><canvas id="chart-bq2-outcome"></canvas></div></div>
+    </div>
+  </div>
 
-  <!-- BQ3 -->
-  <section id="panel-bq3" role="tabpanel">
-    <p class="question">¿Qué criterio consultan más los estudiantes al comparar restaurantes?</p>
-    <div class="pipeline">
-      <span class="step">HomeViewModel · RestaurantDetailScreen</span>→
-      <span class="step"><code>trackComparisonCriterion()</code></span>→
-      <span class="step">Firestore <code>telemetry_events</code></span>→
-      <span class="step"><code>dashboard.py</code> aggregate_bq3</span>→
-      <span class="step">localhost</span>
+  <div class="bq">
+    <h2>BQ3 · Catalina · Flutter</h2>
+    <p class="question">¿Qué información usan más los estudiantes al comparar restaurantes: precio, distancia, tiempo de espera, menú o preferencias alimentarias?</p>
+    <p class="result">Criterio más consultado: <b id="bq3-top">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Consultas por criterio</h3><div><canvas id="chart-bq3"></canvas></div></div>
     </div>
+  </div>
 
-    <div class="grid">
-      <div class="card"><div class="muted">Criterio más consultado</div><div class="kpi" id="bq3Top">–</div><div class="muted" id="bq3TopDetail"></div></div>
-      <div class="card"><div class="muted">Interacciones</div><div class="kpi" id="bq3Total">–</div><div class="muted">eventos de comparación</div></div>
-      <div class="card"><div class="muted">Usuarios únicos</div><div class="kpi" id="bq3Users">–</div><div class="muted">con sesión iniciada</div></div>
+  <div class="bq">
+    <h2>BQ4 · Karin · Kotlin</h2>
+    <p class="question">¿Qué porcentaje de estudiantes revisa las fotos del menú antes de decidir?</p>
+    <p class="result">Revisan fotos: <b id="bq4-rate">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Inspecciones de menú</h3><div><canvas id="chart-bq4-photos"></canvas></div></div>
+      <div class="chart"><h3>Restaurantes más inspeccionados</h3><div><canvas id="chart-bq4-restaurants"></canvas></div></div>
     </div>
+  </div>
 
-    <div class="grid wide">
-      <div class="card"><h2>Consultas por criterio</h2><div class="chart"><canvas id="bq3Criteria"></canvas></div></div>
-      <div class="card"><h2>Restaurantes más comparados</h2><div class="chart"><canvas id="bq3Restaurants"></canvas></div></div>
+  <div class="bq">
+    <h2>BQ5 · Felipe · Flutter</h2>
+    <p class="question">¿Cuál es la tasa de finalización de reseñas escaneando el QR frente a buscar el restaurante manualmente?</p>
+    <p class="result">Conversión con QR: <b id="bq5-qr">N/A</b> · Conversión manual: <b id="bq5-manual">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Reseñas iniciadas y publicadas</h3><div><canvas id="chart-bq5"></canvas></div></div>
     </div>
-  </section>
+  </div>
 
-  <!-- BQ5 -->
-  <section id="panel-bq5" role="tabpanel">
-    <p class="question">¿Cuántos estudiantes que empiezan una reseña la publican, y verificar la visita con QR cambia eso?</p>
-    <div class="pipeline">
-      <span class="step">WriteReviewViewModel</span>→
-      <span class="step"><code>trackReviewEvent()</code></span>→
-      <span class="step">Firestore <code>telemetry_events</code></span>→
-      <span class="step"><code>dashboard.py</code> aggregate_bq5</span>→
-      <span class="step">localhost</span>
+  <div class="bq">
+    <h2>BQ6 · Samuel · Kotlin</h2>
+    <p class="question">¿Cuánto tiempo en promedio gasta un estudiante configurando filtros de precio, distancia y dietas antes de elegir restaurante?</p>
+    <p class="result">Tiempo promedio: <b id="bq6s-avg">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Tiempo configurando filtros</h3><div><canvas id="chart-bq6s-durations"></canvas></div></div>
+      <div class="chart"><h3>Edificio de referencia</h3><div><canvas id="chart-bq6s-buildings"></canvas></div></div>
+      <div class="chart"><h3>Filtros dietarios</h3><div><canvas id="chart-bq6s-dietary"></canvas></div></div>
     </div>
+  </div>
 
-    <div class="grid">
-      <div class="card"><div class="muted"><span class="dot" style="background:var(--qr)"></span>Conversión QR</div><div class="kpi" id="convQr">–</div><div class="muted" id="detailQr"></div></div>
-      <div class="card"><div class="muted"><span class="dot" style="background:var(--manual)"></span>Conversión manual</div><div class="kpi" id="convManual">–</div><div class="muted" id="detailManual"></div></div>
-      <div class="card"><div class="muted">Reseñas publicadas con QR</div><div class="kpi" id="qrShare">–</div><div class="muted" id="detailShare"></div></div>
-      <div class="card"><div class="muted">Eventos procesados</div><div class="kpi" id="totalEvents">–</div><div class="muted">iniciadas + publicadas</div></div>
+  <div class="bq">
+    <h2>BQ6 · Juan José · Flutter</h2>
+    <p class="question">¿Cuánto tiempo pasa un estudiante configurando filtros antes de abrir un restaurante, con y sin la sugerencia de filtros?</p>
+    <p class="result">Tiempo promedio: <b id="bq6j-avg">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Tiempo configurando filtros</h3><div><canvas id="chart-bq6j-durations"></canvas></div></div>
+      <div class="chart"><h3>Tiempo promedio con y sin sugerencia (s)</h3><div><canvas id="chart-bq6j-suggestion"></canvas></div></div>
     </div>
+  </div>
 
-    <div class="grid wide">
-      <div class="card"><h2>Iniciadas vs publicadas</h2><div class="chart"><canvas id="funnel"></canvas></div></div>
-      <div class="card"><h2>Publicadas por día</h2><div class="chart"><canvas id="daily"></canvas></div></div>
+  <div class="bq">
+    <h2>BQ8 · Karin · Kotlin</h2>
+    <p class="question">¿Con qué frecuencia se usa "Sugerir para un grupo" frente a las búsquedas individuales?</p>
+    <p class="result">Uso de "Sugerir para un grupo": <b id="bq8-pct">N/A</b> · Tamaño promedio del grupo: <b id="bq8-size">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Búsquedas en grupo e individuales</h3><div><canvas id="chart-bq8"></canvas></div></div>
     </div>
-    <div class="grid wide">
-      <div class="card"><h2>Publicadas por restaurante</h2><div class="chart"><canvas id="restaurants"></canvas></div></div>
+  </div>
+
+  <div class="bq">
+    <h2>BQ9 · Juan José · Flutter</h2>
+    <p class="question">¿Qué tanto se usan los filtros de alergias y restricciones alimentarias frente a los demás, y cuáles restricciones se eligen más?</p>
+    <p class="result">Filtros dietarios sobre el total de usos: <b id="bq9-pct">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Usos por tipo de filtro</h3><div><canvas id="chart-bq9-types"></canvas></div></div>
+      <div class="chart"><h3>Restricciones elegidas</h3><div><canvas id="chart-bq9-restrictions"></canvas></div></div>
     </div>
-  </section>
+  </div>
+
+  <div class="bq">
+    <h2>BQ10 · Samuel · Kotlin</h2>
+    <p class="question">¿Con qué frecuencia filtran por cercanía a un edificio del campus frente a la búsqueda genérica, y debería ser la vista por defecto?</p>
+    <p class="result">Filtran por edificio: <b id="bq10-pct">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Búsquedas por edificio y genéricas</h3><div><canvas id="chart-bq10-mode"></canvas></div></div>
+      <div class="chart"><h3>Edificios más usados</h3><div><canvas id="chart-bq10-buildings"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
+    <h2>Reseñas por QR · Kotlin</h2>
+    <p class="question">Calificaciones y reseñas completadas después de escanear el QR.</p>
+    <p class="result">Calificación promedio: <b id="qr-rating">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Calificaciones</h3><div><canvas id="chart-qr-ratings"></canvas></div></div>
+      <div class="chart"><h3>Reseñas completadas y canceladas</h3><div><canvas id="chart-qr-completion"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
+    <h2>Últimos eventos</h2>
+    <table>
+      <thead><tr><th>Fecha</th><th>Evento</th><th>Plataforma</th><th>Parámetros</th></tr></thead>
+      <tbody id="events-table-body"></tbody>
+    </table>
+  </div>
 </main>
 
 <script>
-  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const $ = (id) => document.getElementById(id);
+  const CRITERIA = { price: 'Precio', distance: 'Distancia', waiting_time: 'Tiempo de espera', menu: 'Menú', dietary_preferences: 'Pref. alimentarias' };
+  const FILTERS = { category: 'Categoría', walking_time: 'Distancia a pie', price: 'Precio', dietary: 'Dietario', payment: 'Pago' };
+  const RESTRICTIONS = { vegan: 'Vegano', gluten_free: 'Sin gluten', lactose_free: 'Sin lactosa' };
+  const BLUE = '#58a6ff';
+  const ORANGE = '#f0883e';
+  const GRAY = '#6e7681';
   const charts = {};
-  const CRITERIA_LABELS = {
-    price: 'Precio',
-    distance: 'Distancia',
-    waiting_time: 'Tiempo de espera',
-    menu: 'Menú',
-    dietary_preferences: 'Preferencias alimentarias',
-  };
 
-  function draw(id, config) {
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.borderColor = '#30363d';
+  Chart.defaults.elements.arc.borderColor = '#161b22';
+
+  function draw(id, type, labels, datasets, options = {}) {
     charts[id]?.destroy();
-    charts[id] = new Chart($(id), config);
-  }
-
-  function series(rows) {
-    return [
-      { label: 'QR', data: rows.map(r => r.qr), backgroundColor: css('--qr'), borderColor: css('--qr'), maxBarThickness: 56, borderRadius: 4 },
-      { label: 'Manual', data: rows.map(r => r.manual), backgroundColor: css('--manual'), borderColor: css('--manual'), maxBarThickness: 56, borderRadius: 4 },
-    ];
-  }
-
-  function baseOptions() {
-    Chart.defaults.color = css('--muted');
-    Chart.defaults.borderColor = css('--border');
-    return { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } };
-  }
-
-  async function fetchJson(path) {
-    const response = await fetch(path);
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error);
-    return data;
-  }
-
-  function renderBq3(data) {
-    const top = data.mostConsulted;
-    $('bq3Top').textContent = top ? CRITERIA_LABELS[top] : '–';
-    $('bq3TopDetail').textContent = top ? `${data.counts[top]} consultas · ${data.percentages[top]}%` : 'Sin datos todavía';
-    $('bq3Total').textContent = data.total;
-    $('bq3Users').textContent = data.uniqueUsers;
-
-    const criteria = Object.keys(data.counts);
-    const horizontal = { ...baseOptions(), indexAxis: 'y', plugins: { legend: { display: false } },
-      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } };
-
-    draw('bq3Criteria', {
-      type: 'bar',
-      data: {
-        labels: criteria.map(c => CRITERIA_LABELS[c]),
-        datasets: [{
-          data: criteria.map(c => data.counts[c]),
-          backgroundColor: criteria.map(c => c === top ? css('--bq3') : css('--bq3-soft')),
-          borderRadius: 4, maxBarThickness: 34,
-        }],
+    const ring = type === 'doughnut';
+    charts[id] = new Chart(document.getElementById(id), {
+      type,
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: ring || datasets.length > 1, position: 'bottom' } },
+        scales: ring ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        ...options,
       },
-      options: { ...horizontal, plugins: { ...horizontal.plugins, tooltip: {
-        callbacks: { label: (ctx) => ` ${ctx.raw} consultas · ${data.percentages[criteria[ctx.dataIndex]]}%` },
-      } } },
-    });
-
-    const restaurants = Object.keys(data.byRestaurant);
-    draw('bq3Restaurants', {
-      type: 'bar',
-      data: {
-        labels: restaurants,
-        datasets: [{ data: restaurants.map(r => data.byRestaurant[r]), backgroundColor: css('--bq3'), borderRadius: 4, maxBarThickness: 34 }],
-      },
-      options: horizontal,
     });
   }
 
-  function renderBq5(data) {
-    const { qr, manual } = data.totals;
-    const published = qr.published + manual.published;
-    $('convQr').textContent = qr.conversion + '%';
-    $('detailQr').textContent = `${qr.published} de ${qr.started} iniciadas`;
-    $('convManual').textContent = manual.conversion + '%';
-    $('detailManual').textContent = `${manual.published} de ${manual.started} iniciadas`;
-    $('qrShare').textContent = data.qrShare + '%';
-    $('detailShare').textContent = `${qr.published} de ${published} publicadas`;
-    $('totalEvents').textContent = data.totalEvents;
-
-    const options = baseOptions();
-    draw('funnel', {
-      type: 'bar',
-      data: {
-        labels: ['Iniciadas', 'Publicadas'],
-        datasets: series([
-          { qr: qr.started, manual: manual.started },
-          { qr: qr.published, manual: manual.published },
-        ]),
-      },
-      options,
-    });
-
-    const days = Object.keys(data.byDay);
-    draw('daily', {
-      type: 'bar',
-      data: { labels: days, datasets: series(days.map(d => data.byDay[d])) },
-      options,
-    });
-
-    const restaurants = Object.keys(data.byRestaurant);
-    draw('restaurants', {
-      type: 'bar',
-      data: { labels: restaurants, datasets: series(restaurants.map(r => data.byRestaurant[r])) },
-      options: { ...options, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } },
-    });
+  function bars(id, values, color = BLUE, names = {}, options = {}) {
+    const keys = Object.keys(values);
+    draw(id, 'bar', keys.map(k => names[k] || k), [{ data: Object.values(values), backgroundColor: color }], options);
   }
 
-  async function load() {
-    const errorBox = $('error');
-    errorBox.style.display = 'none';
+  function ring(id, labels, values, colors = [BLUE, ORANGE, GRAY]) {
+    draw(id, 'doughnut', labels, [{ data: values, backgroundColor: colors }]);
+  }
+
+  function zero(value) {
+    return value === 'N/A' ? 0 : value;
+  }
+
+  function show(id, value, unit = '') {
+    document.getElementById(id).textContent = value === 'N/A' ? 'N/A' : value + unit;
+  }
+
+  const horizontal = { indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { precision: 0 } } } };
+
+  function renderTable(events) {
+    document.getElementById('events-table-body').replaceChildren(...events.map(e => {
+      const row = document.createElement('tr');
+      const values = [new Date(e.timestamp).toLocaleString(), e.eventName, e.platform || 'Android-Kotlin', JSON.stringify(e.params || {})];
+      values.forEach((text, i) => {
+        const cell = document.createElement('td');
+        if (i === 3) cell.className = 'params';
+        cell.textContent = text;
+        row.appendChild(cell);
+      });
+      return row;
+    }));
+  }
+
+  function render(data) {
+    show('kpi-total', data.summary.total);
+    show('kpi-flutter', data.summary.flutter);
+    show('kpi-kotlin', data.summary.kotlin);
+
+    const bq2 = data.bq2_felipe;
+    show('bq2-avg', bq2.avg_load, ' s');
+    show('bq2-median', bq2.median_load, ' s');
+    show('bq2-abandon', bq2.abandon_pct, '%');
+    show('bq2-wait', bq2.avg_wait_abandoned, ' s');
+    bars('chart-bq2-buckets', bq2.load_buckets);
+    bars('chart-bq2-source', { 'Caché': zero(bq2.avg_cache), 'Servidor': zero(bq2.avg_server) }, [BLUE, ORANGE]);
+    ring('chart-bq2-outcome', ['Completadas', 'Abandonadas'], [bq2.loads, bq2.abandoned]);
+
+    const bq3 = data.bq3_catalina;
+    document.getElementById('bq3-top').textContent = bq3.top ? `${CRITERIA[bq3.top]} (${bq3.top_pct}%)` : 'N/A';
+    bars('chart-bq3', bq3.counts, BLUE, CRITERIA, horizontal);
+
+    const bq4 = data.bq4_karin;
+    show('bq4-rate', bq4.inspection_rate, '%');
+    ring('chart-bq4-photos', ['Vieron fotos', 'No vieron fotos'], [bq4.checked, bq4.not_checked]);
+    bars('chart-bq4-restaurants', bq4.restaurants, BLUE, {}, horizontal);
+
+    const bq5 = data.bq5_felipe;
+    show('bq5-qr', bq5.qr.conversion, '%');
+    show('bq5-manual', bq5.manual.conversion, '%');
+    draw('chart-bq5', 'bar', ['Iniciadas', 'Publicadas'], [
+      { label: 'QR', data: [bq5.qr.started, bq5.qr.published], backgroundColor: BLUE },
+      { label: 'Manual', data: [bq5.manual.started, bq5.manual.published], backgroundColor: ORANGE },
+    ]);
+
+    const bq6s = data.bq6_samuel;
+    show('bq6s-avg', bq6s.avg_duration, ' s');
+    bars('chart-bq6s-durations', bq6s.duration_buckets);
+    bars('chart-bq6s-buildings', bq6s.buildings);
+    ring('chart-bq6s-dietary', Object.keys(bq6s.dietary), Object.values(bq6s.dietary));
+
+    const bq6j = data.bq6_juanjo;
+    show('bq6j-avg', bq6j.avg_duration, ' s');
+    bars('chart-bq6j-durations', bq6j.duration_buckets);
+    bars('chart-bq6j-suggestion', { 'Con sugerencia': zero(bq6j.with_suggestion), 'Sin sugerencia': zero(bq6j.without_suggestion) }, [BLUE, ORANGE]);
+
+    const bq8 = data.bq8_karin;
+    show('bq8-pct', bq8.group_pct, '%');
+    show('bq8-size', bq8.avg_group_size);
+    ring('chart-bq8', ['Grupo', 'Individual'], [bq8.group, bq8.individual]);
+
+    const bq9 = data.bq9_juanjo;
+    show('bq9-pct', bq9.dietary_pct, '%');
+    bars('chart-bq9-types', bq9.types, BLUE, FILTERS);
+    ring('chart-bq9-restrictions', Object.keys(bq9.restrictions).map(r => RESTRICTIONS[r]), Object.values(bq9.restrictions));
+
+    const bq10 = data.bq10_samuel;
+    show('bq10-pct', bq10.building_pct, '%');
+    ring('chart-bq10-mode', ['Por edificio', 'Genérica / GPS'], [bq10.building, bq10.generic]);
+    bars('chart-bq10-buildings', bq10.buildings);
+
+    const qr = data.qr_reviews;
+    show('qr-rating', qr.avg_rating, ' / 5');
+    bars('chart-qr-ratings', qr.ratings);
+    ring('chart-qr-completion', ['Completadas', 'Canceladas'], [qr.completed, qr.cancelled]);
+
+    renderTable(data.raw_events);
+    document.getElementById('last-updated').textContent = 'Actualizado: ' + data.generated_at;
+  }
+
+  async function fetchData() {
+    const error = document.getElementById('error');
     try {
-      const [bq3, bq5] = await Promise.all([fetchJson('/api/bq3'), fetchJson('/api/bq5')]);
-      renderBq3(bq3);
-      renderBq5(bq5);
-      $('generatedAt').textContent = 'Actualizado ' + bq5.generatedAt;
-    } catch (error) {
-      errorBox.textContent = 'Error leyendo Firestore: ' + error.message;
-      errorBox.style.display = 'block';
+      const response = await fetch('/api/stats');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      error.style.display = 'none';
+      render(data);
+    } catch (err) {
+      error.textContent = 'No se pudieron leer los datos de Firestore: ' + err.message;
+      error.style.display = 'block';
     }
   }
 
-  function selectTab(name) {
-    document.querySelectorAll('.tab').forEach(tab => tab.setAttribute('aria-selected', tab.dataset.tab === name));
-    document.querySelectorAll('section[role="tabpanel"]').forEach(panel => { panel.hidden = panel.id !== 'panel-' + name; });
-    history.replaceState(null, '', '#' + name);
-    Object.values(charts).forEach(chart => chart.resize());
-  }
-
-  document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
-  $('refresh').addEventListener('click', load);
-  selectTab(location.hash === '#bq5' ? 'bq5' : 'bq3');
-  load();
+  document.getElementById('refresh').addEventListener('click', fetchData);
+  fetchData();
+  setInterval(fetchData, 60000);
 </script>
 </body>
 </html>
