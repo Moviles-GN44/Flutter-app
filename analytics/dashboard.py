@@ -30,6 +30,7 @@ FLUTTER_EVENTS = [
     "review_published",
     "filter_session_completed",
     "filter_applied",
+    "feature_opened",
 ]
 
 RESTAURANT_NAMES = {
@@ -45,6 +46,7 @@ CRITERIA = ["price", "distance", "waiting_time", "menu", "dietary_preferences"]
 FILTER_TYPES = ["category", "walking_time", "price", "dietary", "payment"]
 RESTRICTIONS = ["vegan", "gluten_free", "lactose_free"]
 METHODS = ["qr", "manual"]
+FEATURES = ["home", "explore", "favorites", "profile", "qr_scanner"]
 SECONDS_BUCKETS = [(5, "< 5s"), (10, "5-10s"), (20, "10-20s"), (None, "> 20s")]
 LOAD_BUCKETS = [(1, "< 1s"), (2, "1-2s"), (5, "2-5s"), (None, "> 5s")]
 
@@ -270,6 +272,21 @@ def bq6_juanjo(events):
     }
 
 
+def bq7_catalina(events):
+    opened = named(events, "feature_opened")
+    counts = Counter({f: 0 for f in FEATURES})
+    counts.update(params(e).get("feature") for e in opened if params(e).get("feature") in FEATURES)
+    total = sum(counts.values())
+    least = min(counts.values())
+    return {
+        "total": total,
+        "counts": dict(counts),
+        "least_used": [f for f, c in counts.items() if c == least] if total else [],
+        "least_pct": percent(least, total),
+        "users": len({params(e).get("userId") for e in opened if params(e).get("userId")}),
+    }
+
+
 def bq9_juanjo(events):
     applied = [e for e in named(events, "filter_applied") if params(e).get("filterType") in FILTER_TYPES]
     types = Counter({t: 0 for t in FILTER_TYPES})
@@ -303,6 +320,7 @@ def calculate_metrics(events):
         "bq3_catalina": bq3_catalina(events),
         "bq5_felipe": bq5_felipe(events),
         "bq6_juanjo": bq6_juanjo(events),
+        "bq7_catalina": bq7_catalina(events),
         "bq9_juanjo": bq9_juanjo(events),
         "raw_events": [
             {k: e.get(k) for k in ("timestamp", "eventName", "platform", "params")}
@@ -346,6 +364,9 @@ def demo_events():
         filter_type = random.choices(FILTER_TYPES, weights=[4, 3, 3, 2, 1])[0]
         value = random.choice(RESTRICTIONS) if filter_type == "dietary" else "any"
         events.append(event("filter_applied", "Flutter", {"filterType": filter_type, "value": value}))
+    for _ in range(90):
+        feature = random.choices(FEATURES, weights=[8, 5, 1, 2, 3])[0]
+        events.append(event("feature_opened", "Flutter", {"feature": feature, "userId": f"user-{random.randint(1, 20)}"}))
     for _ in range(35):
         events.append(
             event(

@@ -110,6 +110,15 @@
   </div>
 
   <div class="bq">
+    <h2>BQ7 · Catalina · Flutter</h2>
+    <p class="question">¿Qué funcionalidades de la app se usan con menos frecuencia cuando los estudiantes deciden dónde comer?</p>
+    <p class="result">Menos usada: <b id="bq7-least">N/A</b> · Aperturas registradas: <b id="bq7-total">0</b> · Usuarios: <b id="bq7-users">0</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Veces que se abrió cada funcionalidad</h3><div><canvas id="chart-bq7"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
     <h2>BQ8 · Karin · Kotlin</h2>
     <p class="question">¿Con qué frecuencia se usa "Sugerir para un grupo" frente a las búsquedas individuales?</p>
     <p class="result">Uso de "Sugerir para un grupo": <b id="bq8-pct">N/A</b> · Tamaño promedio del grupo: <b id="bq8-size">N/A</b></p>
@@ -161,6 +170,7 @@
   const CRITERIA = { price: 'Precio', distance: 'Distancia', waiting_time: 'Tiempo de espera', menu: 'Menú', dietary_preferences: 'Pref. alimentarias' };
   const FILTERS = { category: 'Categoría', walking_time: 'Distancia a pie', price: 'Precio', dietary: 'Dietario', payment: 'Pago' };
   const RESTRICTIONS = { vegan: 'Vegano', gluten_free: 'Sin gluten', lactose_free: 'Sin lactosa' };
+  const FEATURES = { home: 'Mapa', explore: 'Explore', favorites: 'Favoritos', profile: 'Perfil', qr_scanner: 'Escáner QR' };
   const BLUE = '#58a6ff';
   const ORANGE = '#f0883e';
   const GRAY = '#6e7681';
@@ -260,6 +270,12 @@
     show('bq6j-avg', bq6j.avg_duration, ' s');
     bars('chart-bq6j-durations', bq6j.duration_buckets);
     bars('chart-bq6j-suggestion', { 'Con sugerencia': zero(bq6j.with_suggestion), 'Sin sugerencia': zero(bq6j.without_suggestion) }, [BLUE, ORANGE]);
+
+    const bq7 = data.bq7_catalina;
+    document.getElementById('bq7-least').textContent = bq7.least_used.length ? `${bq7.least_used.map(f => FEATURES[f]).join(', ')} (${bq7.least_pct}%)` : 'N/A';
+    show('bq7-total', bq7.total);
+    show('bq7-users', bq7.users);
+    bars('chart-bq7', bq7.counts, BLUE, FEATURES, horizontal);
 
     const bq8 = data.bq8_karin;
     show('bq8-pct', bq8.group_pct, '%');
