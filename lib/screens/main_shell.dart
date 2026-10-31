@@ -8,15 +8,14 @@ import 'package:uniandes_food/screens/auth/login_screen.dart';
 import 'package:uniandes_food/screens/home/home_screen.dart';
 import 'package:uniandes_food/screens/review/scan_qr_screen.dart';
 import 'package:uniandes_food/services/location/preferred_building_sync.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
 import 'package:uniandes_food/viewmodels/home_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
+import 'dart:async';
 
 class MainShell extends StatefulWidget {
-  const MainShell({
-    super.key,
-    required this.authViewModel,
-  });
+  const MainShell({super.key, required this.authViewModel});
 
   final AuthViewModel authViewModel;
 
@@ -27,6 +26,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late final HomeViewModel _homeViewModel;
   late final PreferredBuildingSync _buildingSync;
+  final TelemetryService _featureTelemetry = TelemetryService();
 
   @override
   void initState() {
@@ -53,9 +53,7 @@ class _MainShellState extends State<MainShell> {
       auth.clearError();
 
       await navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => LoginScreen(viewModel: auth),
-        ),
+        MaterialPageRoute<void>(builder: (_) => LoginScreen(viewModel: auth)),
       );
 
       auth.clearError();
@@ -63,10 +61,15 @@ class _MainShellState extends State<MainShell> {
       if (!auth.isAuthenticated) return;
     }
 
-    navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => const ScanQrScreen(),
+    unawaited(
+      _featureTelemetry.trackFeatureOpened(
+        feature: 'qr_scanner',
+        userId: auth.currentUser?.uid,
       ),
+    );
+
+    navigator.push(
+      MaterialPageRoute<void>(builder: (_) => const ScanQrScreen()),
     );
   }
 
@@ -92,32 +95,37 @@ class _MainShellState extends State<MainShell> {
                     widget.authViewModel,
                     _buildingSync,
                   ]),
-                  builder: (context, _) =>
-                      widget.authViewModel.isAuthenticated
-                          ? ProfileScreen(
-                              showBottomNav: false,
-                              onLogout: widget.authViewModel.signOut,
-                              user: widget.authViewModel.currentUser,
-                              preferredBuilding:
-                                  _buildingSync.preferredBuilding,
-                              onChangeBuilding:
-                                  _buildingSync.setPreferredBuilding,
-                              buildingIsSyncing: _buildingSync.isSyncing,
-                            )
-                          : LoginScreen(
-                              viewModel: widget.authViewModel,
-                            ),
+                  builder: (context, _) => widget.authViewModel.isAuthenticated
+                      ? ProfileScreen(
+                          showBottomNav: false,
+                          onLogout: widget.authViewModel.signOut,
+                          user: widget.authViewModel.currentUser,
+                          preferredBuilding: _buildingSync.preferredBuilding,
+                          onChangeBuilding: _buildingSync.setPreferredBuilding,
+                          buildingIsSyncing: _buildingSync.isSyncing,
+                        )
+                      : LoginScreen(viewModel: widget.authViewModel),
                 ),
               ],
             ),
-            floatingActionButton: ScanFab(
-              onPressed: _openScanner,
-            ),
+            floatingActionButton: ScanFab(onPressed: _openScanner),
             floatingActionButtonLocation:
                 FloatingActionButtonLocation.centerDocked,
+
             bottomNavigationBar: AppBottomNav(
               currentIndex: tab,
               onSelect: (index) {
+                const features = ['home', 'explore', 'favorites', 'profile'];
+
+                if (index >= 0 && index < features.length) {
+                  unawaited(
+                    _featureTelemetry.trackFeatureOpened(
+                      feature: features[index],
+                      userId: widget.authViewModel.currentUser?.uid,
+                    ),
+                  );
+                }
+
                 AppNavigation.tab.value = index;
               },
             ),
