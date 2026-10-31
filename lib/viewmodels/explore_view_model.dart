@@ -6,6 +6,7 @@ import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
 import 'package:uniandes_food/repositories/campus_restaurants_repository.dart';
 import 'package:uniandes_food/services/filter_suggestion_service.dart';
+import 'package:uniandes_food/services/filter_preferences_service.dart';
 import 'package:uniandes_food/services/location/user_location_tracker.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
@@ -16,12 +17,14 @@ class ExploreViewModel extends ChangeNotifier {
     UserLocationTracker? locationTracker,
     TelemetryService? telemetryService,
     FilterSuggestionService? suggestionService,
+    FilterPreferencesService? preferencesService,
     AuthViewModel? auth,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now,
        _location = locationTracker ?? UserLocationTracker.shared,
        _telemetry = telemetryService ?? TelemetryService(),
        _suggestions = suggestionService ?? FilterSuggestionService(),
+       _preferencesService = preferencesService ?? FilterPreferencesService(),
        _auth = auth {
     _subscription = (repository ?? CampusRestaurantsRepository())
         .watchRestaurantsWithMetadata()
@@ -29,6 +32,7 @@ class ExploreViewModel extends ChangeNotifier {
     _location.addListener(notifyListeners);
     _auth?.addListener(_onAuthChanged);
     _onAuthChanged();
+    unawaited(_loadSavedFilters());
   }
 
   static const walkingTimeOptions = [5, 10, 15];
@@ -39,6 +43,7 @@ class ExploreViewModel extends ChangeNotifier {
   final UserLocationTracker _location;
   final TelemetryService _telemetry;
   final FilterSuggestionService _suggestions;
+  final FilterPreferencesService _preferencesService;
   final AuthViewModel? _auth;
   final DateTime Function() _clock;
 
@@ -61,6 +66,8 @@ class ExploreViewModel extends ChangeNotifier {
   String? _suggestionUserId;
   FilterSuggestion? _suggestion;
   bool _disposed = false;
+  bool _filtersModified = false;
+  Future<void> _saveQueue = Future<void>.value();
 
   RestaurantFilters get filters => _filters;
   bool get showingResults => _showingResults;
@@ -85,12 +92,17 @@ class ExploreViewModel extends ChangeNotifier {
   }
 
   /// Applies the suggested filters in one tap.
+
   void useSuggestion() {
     final suggestion = _suggestion;
     if (suggestion == null) return;
+
     _startSession();
     _usedSuggestion = true;
     _filters = suggestion.filters;
+
+    _saveCurrentFilters();
+
     applyFilters();
   }
 
@@ -108,6 +120,32 @@ class ExploreViewModel extends ChangeNotifier {
     final measured = [for (final r in _restaurants) _location.measure(r)];
     return measured.where(_filters.matches).toList()
       ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+  }
+
+  Future<void> _loadSavedFilters() async {
+    try {
+      final savedFilters = await _preferencesService.loadFilters();
+
+      if (_disposed || _filtersModified) return;
+
+      _filters = savedFilters;
+      notifyListeners();
+    } catch (error) {
+      debugPrint('Could not load saved filters: $error');
+    }
+  }
+
+  void _saveCurrentFilters() {
+    _filtersModified = true;
+    final filtersToSave = _filters;
+
+    _saveQueue = _saveQueue.then((_) async {
+      try {
+        await _preferencesService.saveFilters(filtersToSave);
+      } catch (error) {
+        debugPrint('Could not save filters: $error');
+      }
+    });
   }
 
   void selectCategory(String? category) => _update(category: () => category);
@@ -170,6 +208,9 @@ class ExploreViewModel extends ChangeNotifier {
     _filterChanges++;
     _filters = const RestaurantFilters();
     _showingResults = false;
+
+    _saveCurrentFilters();
+
     notifyListeners();
   }
 
@@ -183,8 +224,11 @@ class ExploreViewModel extends ChangeNotifier {
     bool countsAsChange = true,
   }) {
     _startSession();
+
     if (countsAsChange) _filterChanges++;
+
     final f = _filters;
+
     _filters = RestaurantFilters(
       category: category != null ? category() : f.category,
       maxWalkingMinutes: maxWalkingMinutes != null
@@ -195,6 +239,9 @@ class ExploreViewModel extends ChangeNotifier {
       dietary: dietary ?? f.dietary,
       paymentMethods: paymentMethods ?? f.paymentMethods,
     );
+
+    _saveCurrentFilters();
+
     notifyListeners();
   }
 
