@@ -10,6 +10,8 @@ class ReviewException implements Exception {
   final String message;
 }
 
+typedef ReviewList = ({List<Review> reviews, bool isFromCache});
+
 class ReviewRepository {
   ReviewRepository({FirebaseFirestore? firestore}) : _injected = firestore;
 
@@ -22,28 +24,36 @@ class ReviewRepository {
 
   FirebaseFirestore get _firestore => _injected ?? FirebaseFirestore.instance;
 
-  Future<List<Review>> getReviews(String restaurantId) async {
+  Future<ReviewList> getReviews(String restaurantId) async {
     try {
       final snapshot = await _firestore
           .collection('reviews')
           .where('restaurantId', isEqualTo: restaurantId)
           .get();
-      return snapshot.docs.map((doc) {
+      final reviews = snapshot.docs.map((doc) {
         final createdAt = doc.data()['createdAt'] as Timestamp?;
         return Review.fromMap(doc.data(), createdAt: createdAt?.toDate());
       }).toList();
+      return (reviews: reviews, isFromCache: snapshot.metadata.isFromCache);
     } on FirebaseException {
-      return const [];
+      return (reviews: const <Review>[], isFromCache: false);
     }
   }
 
   Future<bool> addReview(Review review) async {
+    final saved = _firestore.collection('reviews').add({
+      ...review.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    unawaited(
+      saved.then(
+        (_) => _updateRestaurantRating(review),
+        onError: (Object _) {},
+      ),
+    );
+
     try {
-      await _firestore
-          .collection('reviews')
-          .add({...review.toMap(), 'createdAt': FieldValue.serverTimestamp()})
-          .timeout(_serverTimeout);
-      unawaited(_updateRestaurantRating(review));
+      await saved.timeout(_serverTimeout);
       _published.add(review.restaurantId);
       return true;
     } on TimeoutException {

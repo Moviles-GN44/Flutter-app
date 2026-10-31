@@ -43,6 +43,7 @@ class _ScanQrScreenState extends State<ScanQrScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _viewModel.addListener(_onViewModelChanged);
     _lightSubscription = Light().lightSensorStream.listen(
       _viewModel.onLightChanged,
       onError: (Object _) {},
@@ -76,11 +77,15 @@ class _ScanQrScreenState extends State<ScanQrScreen>
     }
   }
 
-  Future<void> _onDetect(BarcodeCapture capture) async {
+  void _onDetect(BarcodeCapture capture) {
     final code = capture.barcodes.isEmpty
         ? null
         : capture.barcodes.first.rawValue;
-    if (!await _viewModel.onCodeDetected(code) || !mounted) return;
+    unawaited(_viewModel.onCodeDetected(code));
+  }
+
+  void _onViewModelChanged() {
+    if (!_viewModel.isVerified || _openTimer != null) return;
 
     HapticFeedback.mediumImpact();
     _scanLine.stop();
