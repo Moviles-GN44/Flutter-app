@@ -41,10 +41,6 @@ class RestaurantRepository {
     );
   }
 
-  List<Restaurant> getNearbyRestaurants({int limit = 4}) {
-    return nearbyRestaurants(limit: limit);
-  }
-
   Future<Restaurant?> fetchRestaurantById(String id) async {
     if (id.isEmpty || id.contains('/')) return null;
 
