@@ -82,6 +82,26 @@ class TelemetryService {
     }
   }
 
+  Future<void> trackMapLoad({
+    required String eventName,
+    required int durationMs,
+    bool? fromCache,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': eventName,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {'durationMs': durationMs, 'fromCache': ?fromCache},
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
+
   /// BQ6: how long the student spent setting filters on the Explore screen
   /// before opening a restaurant.
   Future<void> trackFilterSession({
