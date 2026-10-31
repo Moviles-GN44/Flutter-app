@@ -14,7 +14,7 @@ class CampusMapViewModel extends ChangeNotifier {
     UserLocationTracker? locationTracker,
   }) : _repository = repository ?? CampusRestaurantsRepository(),
        _location = locationTracker ?? UserLocationTracker.shared {
-    _subscription = _repository.watchRestaurants().listen(
+    _subscription = _repository.watchRestaurantsWithMetadata().listen(
       _onRestaurants,
       onError: _onError,
     );
@@ -26,7 +26,7 @@ class CampusMapViewModel extends ChangeNotifier {
   // Where the student is (GPS or a building). The location Strategy lives
   // in UserLocationTracker, shared with the Explore screen.
   final UserLocationTracker _location;
-  late final StreamSubscription<List<Restaurant>> _subscription;
+  late final StreamSubscription<RestaurantsSnapshot> _subscription;
 
   // "Near you" means reachable on foot in this many minutes, and "in a
   // building" means within this many meters of its entrance.
@@ -37,12 +37,25 @@ class CampusMapViewModel extends ChangeNotifier {
   List<Restaurant> _firestoreRestaurants = const [];
   List<Restaurant> _restaurants = const [];
   bool _isLoading = true;
+  bool _isFromCache = false;
+  bool _hasReceivedSnapshot = false;
   String? _errorMessage;
 
   /// Restaurants from Firestore, measured from the student's position.
   List<Restaurant> get restaurants => _restaurants;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  /// True when the restaurants come from the copy Firestore keeps on the
+  /// phone because there is no connection. The GPS keeps working offline, so
+  /// "Near you" and the walking times stay right.
+  bool get isFromCache => _isFromCache;
+
+  bool get hasReceivedSnapshot => _hasReceivedSnapshot;
+
+  /// Offline and the phone has never downloaded the restaurants.
+  bool get hasNoCachedRestaurants =>
+      _hasReceivedSnapshot && _isFromCache && _firestoreRestaurants.isEmpty;
 
   LatLng get userLocation => _location.location;
   String get locationLabel => _location.label;
@@ -95,9 +108,11 @@ class CampusMapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _onRestaurants(List<Restaurant> restaurants) {
-    _firestoreRestaurants = restaurants;
-    _restaurants = [for (final r in restaurants) _location.measure(r)];
+  void _onRestaurants(RestaurantsSnapshot snapshot) {
+    _firestoreRestaurants = snapshot.restaurants;
+    _restaurants = [for (final r in snapshot.restaurants) _location.measure(r)];
+    _isFromCache = snapshot.isFromCache;
+    _hasReceivedSnapshot = true;
     _isLoading = false;
     _errorMessage = null;
     notifyListeners();

@@ -1,8 +1,12 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
 import 'package:uniandes_food/data/campus.dart';
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/services/map/cached_tile_provider.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/campus_map_view_model.dart';
@@ -16,6 +20,7 @@ class CampusMap extends StatefulWidget {
   });
 
   final List<Restaurant> restaurants;
+
   /// Null until the student taps a restaurant.
   final Restaurant? selected;
   final ValueChanged<Restaurant> onSelect;
@@ -44,10 +49,66 @@ class _CampusMapState extends State<CampusMap> {
   final _controller = MapController(); //libreria para controlar el mapa
   late final CampusMapViewModel _viewModel;
 
+  // Tiles already seen are drawn from the phone's disk, so the campus map
+  // shows offline too.
+  final _tileProvider = CachedTileProvider();
+
+  // Offline, tiles never seen before cannot be downloaded. The pins and the
+  // student's position do not need them, so the map keeps working and only
+  // says the background is missing.
+  bool _tilesFailed = false;
+  int _tileLayerVersion = 0;
+
+  // Whether the phone has a network, from the operating system. Firestore can
+  // take a while to reconnect after airplane mode, so the map does not wait
+  // for it to retry the tiles.
+  final _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _isOnline = true;
+
   @override
   void initState() {
     super.initState();
-    _viewModel = CampusMapViewModel();
+    _viewModel = CampusMapViewModel()..addListener(_onViewModelChanged);
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
+      _onConnectivityChanged,
+      onError: (Object _) {},
+    );
+    _connectivity
+        .checkConnectivity()
+        .then(_onConnectivityChanged)
+        .catchError((Object _) {});
+  }
+
+  void _onConnectivityChanged(List<ConnectivityResult> results) {
+    final online = results.any((result) => result != ConnectivityResult.none);
+    if (!mounted || online == _isOnline) return;
+    setState(() {
+      _isOnline = online;
+      if (online) _retryTiles();
+    });
+  }
+
+  // Rebuilds the tile layer so the tiles that failed are requested again.
+  void _retryTiles() {
+    if (!_tilesFailed) return;
+    _tilesFailed = false;
+    _tileLayerVersion++;
+  }
+
+  void _onTileError(TileImage tile, Object error, StackTrace? stackTrace) {
+    if (_tilesFailed || !mounted) return;
+    setState(() => _tilesFailed = true);
+  }
+
+  void _onViewModelChanged() {
+    // The server answered, so the connection really works: retry the tiles in
+    // case the first retry happened before the network was ready.
+    if (_tilesFailed &&
+        _viewModel.hasReceivedSnapshot &&
+        !_viewModel.isFromCache) {
+      setState(_retryTiles);
+    }
   }
 
   @override
@@ -61,7 +122,10 @@ class _CampusMapState extends State<CampusMap> {
 
   @override
   void dispose() {
-    _viewModel.dispose();
+    _connectivitySubscription?.cancel();
+    _viewModel
+      ..removeListener(_onViewModelChanged)
+      ..dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -105,9 +169,24 @@ class _CampusMapState extends State<CampusMap> {
       ...restaurants.where((r) => r.id != selected?.id),
       ...restaurants.where((r) => r.id == selected?.id),
     ];
-    final status = _viewModel.isLoading
+    // Online, an empty cache only means the first download is on its way.
+    final waitingForServer = _viewModel.hasNoCachedRestaurants && _isOnline;
+    final status = _viewModel.isLoading || waitingForServer
         ? 'Loading restaurants…'
-        : _viewModel.errorMessage;
+        : _viewModel.errorMessage ??
+              (_viewModel.hasNoCachedRestaurants
+                  ? 'Offline · connect once to load the restaurants'
+                  : null);
+    final offlineNotice = !_isOnline
+        ? _tilesFailed
+              ? 'Offline · saved restaurants, no map background'
+              : 'Offline · showing saved restaurants'
+        // Back online, until Firestore confirms the data with the server.
+        : _viewModel.isFromCache
+        ? 'Updating restaurants…'
+        : _tilesFailed
+        ? 'Map background unavailable'
+        : null;
     final nearby = _viewModel.nearbyRestaurants;
     final hasNearby = nearby.isNotEmpty;
 
@@ -131,7 +210,13 @@ class _CampusMapState extends State<CampusMap> {
       children: [
         //tilelayer es la capa que muestra los tiles del mapa, en este caso de openstreetmap
         //permite agregar marcadores de restaurantes y la ubicación del usuario segun la cuadricula
-        TileLayer(urlTemplate: _tileUrl, userAgentPackageName: _userAgent),
+        TileLayer(
+          key: ValueKey(_tileLayerVersion),
+          urlTemplate: _tileUrl,
+          userAgentPackageName: _userAgent,
+          tileProvider: _tileProvider,
+          errorTileCallback: _onTileError,
+        ),
         MarkerLayer(
           markers: [
             for (final restaurant in ordered)
@@ -183,14 +268,20 @@ class _CampusMapState extends State<CampusMap> {
         ),
         //////const _MapAttribution(),
         if (status != null)
-          _MapStatus(message: status)
-        else if (_viewModel.closestRestaurant case final closest?)
-          _NearbyBanner(
-            building: _viewModel.currentBuilding,
-            nearby: nearby,
-            closest: closest,
-            onTap: () => widget.onSelect(hasNearby ? nearby.first : closest),
-          ),
+          _MapStatus(message: status, offline: !_isOnline)
+        else ...[
+          if (offlineNotice != null)
+            _MapStatus(message: offlineNotice, offline: !_isOnline),
+          if (_viewModel.closestRestaurant case final closest?)
+            _NearbyBanner(
+              building: _viewModel.currentBuilding,
+              nearby: nearby,
+              closest: closest,
+              // Leaves room for the offline notice above it.
+              topOffset: offlineNotice == null ? 0 : 44,
+              onTap: () => widget.onSelect(hasNearby ? nearby.first : closest),
+            ),
+        ],
         _LocationControls(
           label: _viewModel.isUsingGps
               ? 'GPS'
@@ -414,12 +505,14 @@ class _NearbyBanner extends StatelessWidget {
     required this.nearby,
     required this.closest,
     required this.onTap,
+    this.topOffset = 0,
   });
 
   final String? building;
   final List<Restaurant> nearby;
   final Restaurant closest;
   final VoidCallback onTap;
+  final double topOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -442,7 +535,7 @@ class _NearbyBanner extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           16,
-          MediaQuery.paddingOf(context).top + 84,
+          MediaQuery.paddingOf(context).top + 84 + topOffset,
           16,
           0,
         ),
@@ -511,9 +604,12 @@ class _NearbyBanner extends StatelessWidget {
 }
 
 class _MapStatus extends StatelessWidget {
-  const _MapStatus({required this.message});
+  const _MapStatus({required this.message, this.offline = false});
 
   final String message;
+
+  /// Adds a cloud icon so the student sees at a glance there is no connection.
+  final bool offline;
 
   @override
   Widget build(BuildContext context) {
@@ -533,12 +629,27 @@ class _MapStatus extends StatelessWidget {
             ),
           ],
         ),
-        child: Text(
-          message,
-          style: AppText.tag.copyWith(
-            fontSize: 12,
-            color: AppColors.shadowGrey,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (offline) ...[
+              const Icon(
+                Icons.cloud_off_rounded,
+                size: 14,
+                color: AppColors.shadowGrey,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: Text(
+                message,
+                style: AppText.tag.copyWith(
+                  fontSize: 12,
+                  color: AppColors.shadowGrey,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
