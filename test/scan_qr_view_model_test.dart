@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:uniandes_food/data/sample_restaurants.dart';
@@ -16,15 +19,18 @@ class _FakeReviewRepository implements ReviewRepository {
     this.confirmed = true,
     this.error,
     this.stored = const [],
+    this.fromCache = false,
   });
 
   final bool confirmed;
   final ReviewException? error;
   final List<Review> stored;
+  final bool fromCache;
   Review? saved;
 
   @override
-  Future<List<Review>> getReviews(String restaurantId) async => stored;
+  Future<ReviewList> getReviews(String restaurantId) async =>
+      (reviews: stored, isFromCache: fromCache);
 
   @override
   Future<bool> addReview(Review review) async {
@@ -35,9 +41,11 @@ class _FakeReviewRepository implements ReviewRepository {
 }
 
 class _FakeRestaurantRepository implements RestaurantRepository {
+  bool reachable = true;
+
   @override
   Future<Restaurant?> fetchRestaurantById(String id) async {
-    if (id != 'el_toro_rgd') return null;
+    if (!reachable || id != 'el_toro_rgd') return null;
     return Restaurant.fromFirestore(id, const {
       'name': 'El Toro - RGD',
       'category': 'Executive Lunch',
@@ -51,8 +59,32 @@ class _FakeRestaurantRepository implements RestaurantRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-ScanQrViewModel _scanViewModel() =>
-    ScanQrViewModel(repository: _FakeRestaurantRepository());
+class _FakeConnectivity implements Connectivity {
+  _FakeConnectivity({required bool online})
+    : _current = online ? ConnectivityResult.wifi : ConnectivityResult.none;
+
+  final _changes = StreamController<List<ConnectivityResult>>.broadcast();
+  ConnectivityResult _current;
+
+  void set({required bool online}) {
+    _current = online ? ConnectivityResult.wifi : ConnectivityResult.none;
+    _changes.add([_current]);
+  }
+
+  @override
+  Stream<List<ConnectivityResult>> get onConnectivityChanged => _changes.stream;
+
+  @override
+  Future<List<ConnectivityResult>> checkConnectivity() async => [_current];
+}
+
+ScanQrViewModel _scanViewModel({
+  _FakeRestaurantRepository? repository,
+  _FakeConnectivity? connectivity,
+}) => ScanQrViewModel(
+  repository: repository ?? _FakeRestaurantRepository(),
+  connectivity: connectivity ?? _FakeConnectivity(online: true),
+);
 
 class _FakeAuthRepository implements AuthRepository {
   _FakeAuthRepository(this.currentUser);
@@ -145,8 +177,52 @@ void main() {
     expect(viewModel.restaurant?.id, 'el_toro_rgd');
   });
 
+  test('Offline, an unknown code waits for the connection', () async {
+    final repository = _FakeRestaurantRepository()..reachable = false;
+    final viewModel = _scanViewModel(
+      repository: repository,
+      connectivity: _FakeConnectivity(online: false),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await viewModel.onCodeDetected('el_toro_rgd'), isFalse);
+    expect(viewModel.errorMessage, startsWith('No connection'));
+  });
+
+  test('The pending code is verified when the connection is back', () async {
+    final repository = _FakeRestaurantRepository()..reachable = false;
+    final connectivity = _FakeConnectivity(online: false);
+    final viewModel = _scanViewModel(
+      repository: repository,
+      connectivity: connectivity,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await viewModel.onCodeDetected('el_toro_rgd');
+
+    repository.reachable = true;
+    connectivity.set(online: true);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(viewModel.isVerified, isTrue);
+    expect(viewModel.restaurant?.id, 'el_toro_rgd');
+  });
+
+  test('Offline, a code from outside the app is still rejected', () async {
+    final viewModel = _scanViewModel(
+      connectivity: _FakeConnectivity(online: false),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await viewModel.onCodeDetected('https://example.com'), isFalse);
+    expect(
+      viewModel.errorMessage,
+      'This QR code is not from a campus restaurant.',
+    );
+  });
+
   test('Low light is detected and cleared by the light sensor', () {
-    final viewModel = ScanQrViewModel()..onLightChanged(5);
+    final viewModel = _scanViewModel()..onLightChanged(5);
     expect(viewModel.isDark, isTrue);
 
     viewModel.onLightChanged(200);
@@ -154,7 +230,7 @@ void main() {
   });
 
   test('Invalid light readings are ignored', () {
-    final viewModel = ScanQrViewModel()..onLightChanged(-1);
+    final viewModel = _scanViewModel()..onLightChanged(-1);
     expect(viewModel.isDark, isFalse);
   });
 
@@ -269,6 +345,22 @@ void main() {
 
       expect(viewModel.reportedWait, WaitTime.over15);
       expect(viewModel.reportCount, 2);
+      expect(viewModel.reportsFromCache, isFalse);
+    });
+
+    test('Offline, the estimate comes from saved reports', () async {
+      final viewModel = HomeViewModel(
+        initialRestaurant: sampleRestaurants.first,
+        reviewRepository: _FakeReviewRepository(
+          stored: [report(WaitTime.under5, verified: true)],
+          fromCache: true,
+        ),
+      );
+
+      await viewModel.loadReportedWait();
+
+      expect(viewModel.reportedWait, WaitTime.under5);
+      expect(viewModel.reportsFromCache, isTrue);
     });
 
     test('Without reports there is no estimate', () async {

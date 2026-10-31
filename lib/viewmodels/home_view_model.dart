@@ -50,10 +50,12 @@ class HomeViewModel extends ChangeNotifier {
   Restaurant? _selectedRestaurant;
   WaitTime? _reportedWait;
   int _reportCount = 0;
+  bool _reportsFromCache = false;
 
   Restaurant? get selectedRestaurant => _selectedRestaurant;
   WaitTime? get reportedWait => _reportedWait;
   int get reportCount => _reportCount;
+  bool get reportsFromCache => _reportsFromCache;
 
   /// Restaurants from the Firestore `restaurants` collection.
   List<Restaurant> get restaurants => _restaurants;
@@ -95,7 +97,7 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> loadReportedWait() async {
     final restaurantId = _selectedRestaurant?.id;
     if (restaurantId == null) return;
-    final reviews = await _reviewRepository.getReviews(restaurantId);
+    final result = await _reviewRepository.getReviews(restaurantId);
 
     if (restaurantId != _selectedRestaurant?.id) return;
 
@@ -104,7 +106,7 @@ class HomeViewModel extends ChangeNotifier {
     var totalWeight = 0.0;
     var count = 0;
 
-    for (final review in reviews) {
+    for (final review in result.reviews) {
       final weight = _reportWeight(review, now);
 
       if (weight == 0) continue;
@@ -115,6 +117,7 @@ class HomeViewModel extends ChangeNotifier {
     }
 
     _reportCount = count;
+    _reportsFromCache = result.isFromCache;
     _reportedWait = totalWeight == 0
         ? null
         : _waitTimeFor(weightedMinutes / totalWeight);

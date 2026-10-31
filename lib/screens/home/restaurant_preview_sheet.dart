@@ -17,12 +17,14 @@ class RestaurantPreviewSheet extends StatelessWidget {
     this.alternative,
     this.reportedWait,
     this.reportCount = 0,
+    this.reportsFromCache = false,
   });
 
   final Restaurant restaurant;
   final Restaurant? alternative;
   final WaitTime? reportedWait;
   final int reportCount;
+  final bool reportsFromCache;
   final ValueChanged<Restaurant> onSelectAlternative;
   final VoidCallback onViewMenu;
   final VoidCallback onViewWaitingTimeAlternative;
@@ -73,8 +75,10 @@ class RestaurantPreviewSheet extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Students report ${reportedWait!.shortLabel} now · '
-                    '$reportCount ${reportCount == 1 ? 'report' : 'reports'}',
+                    '${reportsFromCache ? 'Saved reports' : 'Students report'} '
+                    '${reportedWait!.shortLabel} · '
+                    '$reportCount ${reportCount == 1 ? 'report' : 'reports'}'
+                    '${reportsFromCache ? ' (offline)' : ''}',
                     style: AppText.caption.copyWith(color: AppColors.tealText),
                   ),
                 ),

@@ -57,6 +57,7 @@ class HomeScreen extends StatelessWidget {
                 alternative: viewModel.fasterAlternative,
                 reportedWait: viewModel.reportedWait,
                 reportCount: viewModel.reportCount,
+                reportsFromCache: viewModel.reportsFromCache,
                 onSelectAlternative: viewModel.selectRestaurant,
                 onViewMenu: () {
                   viewModel.trackComparisonCriterion('menu');
