@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
 import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
+import 'package:uniandes_food/screens/restaurant/compare_restaurants_screen.dart';
 import 'package:uniandes_food/utils/currency.dart';
 import 'package:uniandes_food/services/filter_suggestion_service.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
@@ -57,6 +58,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
+      ),
+    );
+  }
+
+  void _openComparison() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CompareRestaurantsScreen(
+          restaurants: _viewModel.results,
+        ),
       ),
     );
   }
@@ -116,7 +127,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 );
               },
             ),
-
+            if (_viewModel.showingResults &&
+                !_viewModel.isLoading &&
+                _viewModel.results.length >= 2)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openComparison,
+                    icon: const Icon(Icons.compare_arrows),
+                    label: const Text('Compare Restaurants'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: ExploreScreen.primaryText,
+                      side: const BorderSide(
+                        color: ExploreScreen.primaryOrange,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: Container(
                 width: double.infinity,
