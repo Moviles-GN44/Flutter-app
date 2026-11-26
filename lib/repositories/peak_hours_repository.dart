@@ -1,3 +1,5 @@
+import 'dart:isolate';
+
 import 'package:uniandes_food/models/peak_hours.dart';
 import 'package:uniandes_food/repositories/review_repository.dart';
 
@@ -15,6 +17,11 @@ class PeakHoursRepository {
 
   Future<PeakHours> fetch(String restaurantId) async {
     final result = await _reviews.getReviews(restaurantId);
-    return PeakHours.fromReviews(restaurantId, result.reviews, _now());
+    final reviews = result.reviews;
+    final now = _now();
+
+    return Isolate.run(
+      () => PeakHours.fromReviews(restaurantId, reviews, now),
+    );
   }
 }
