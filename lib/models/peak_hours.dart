@@ -7,11 +7,23 @@ class HourSlot {
     required this.averageMinutes,
   });
 
+  factory HourSlot.fromJson(Map<String, dynamic> json) {
+    return HourSlot(
+      hour: json['hour'] as int,
+      reports: json['reports'] as int,
+      averageMinutes: (json['averageMinutes'] as num).toDouble(),
+    );
+  }
+
   final int hour;
   final int reports;
   final double averageMinutes;
 
   WaitTime get waitTime => WaitTime.fromMinutes(averageMinutes);
+
+  Map<String, dynamic> toJson() {
+    return {'hour': hour, 'reports': reports, 'averageMinutes': averageMinutes};
+  }
 }
 
 class PeakHours {
@@ -51,7 +63,18 @@ class PeakHours {
     );
   }
 
-  static final hours = [for (var hour = 7; hour <= 19; hour++) hour];
+  factory PeakHours.fromJson(Map<String, dynamic> json) {
+    return PeakHours(
+      restaurantId: json['restaurantId'] as String,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int),
+      slots: [
+        for (final slot in json['slots'] as List)
+          HourSlot.fromJson(slot as Map<String, dynamic>),
+      ],
+    );
+  }
+
+  static final hours =[for (var hour = 7; hour <= 19; hour++) hour];
 
   final String restaurantId;
   final List<HourSlot> slots;
@@ -79,5 +102,13 @@ class PeakHours {
       }
     }
     return best;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'restaurantId': restaurantId,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'slots': [for (final slot in slots) slot.toJson()],
+    };
   }
 }

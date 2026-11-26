@@ -55,6 +55,10 @@ class _BestTimeScreenState extends State<BestTimeScreen> {
                 'Wait time reported by students at each hour of the day',
                 style: AppText.caption,
               ),
+              if (_viewModel.savedAt case final savedAt?) ...[
+                const SizedBox(height: 12),
+                _SavedNotice(savedAt: savedAt),
+              ],
               const SizedBox(height: 16),
               if (peakHours.slots.isEmpty)
                 const _NoReports()
@@ -85,6 +89,37 @@ class _BestTimeScreenState extends State<BestTimeScreen> {
 }
 
 String _hourLabel(int hour) => '${hour.toString().padLeft(2, '0')}:00';
+
+class _SavedNotice extends StatelessWidget {
+  const _SavedNotice({required this.savedAt});
+
+  final DateTime savedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final day = '${savedAt.day}/${savedAt.month}';
+    final time =
+        '${savedAt.hour.toString().padLeft(2, '0')}:'
+        '${savedAt.minute.toString().padLeft(2, '0')}';
+
+    return Row(
+      children: [
+        const Icon(
+          Icons.phone_android_rounded,
+          size: 16,
+          color: AppColors.tealDark,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Saved on this phone on $day at $time',
+            style: AppText.caption.copyWith(color: AppColors.tealText),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _BestSlotCard extends StatelessWidget {
   const _BestSlotCard({required this.slot, required this.isNow});
