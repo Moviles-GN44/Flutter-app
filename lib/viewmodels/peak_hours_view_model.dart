@@ -32,6 +32,13 @@ class PeakHoursViewModel extends ChangeNotifier {
   Future<void> load() async {
     if (_isLoading) return;
 
+    final cached = _repository.cached(restaurant.id);
+    if (cached != null) {
+      _peakHours = cached;
+      _notify();
+      return;
+    }
+
     _isLoading = true;
     _notify();
 
