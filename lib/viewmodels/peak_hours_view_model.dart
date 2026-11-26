@@ -21,10 +21,12 @@ class PeakHoursViewModel extends ChangeNotifier {
   final DateTime Function() _now;
 
   PeakHours? _peakHours;
+  DateTime? _savedAt;
   bool _isLoading = false;
   bool _disposed = false;
 
   PeakHours? get peakHours => _peakHours;
+  DateTime? get savedAt => _savedAt;
   bool get isLoading => _isLoading;
   int get currentHour => _now().hour;
   HourSlot? get bestSlot => _peakHours?.bestFrom(currentHour);
@@ -42,8 +44,19 @@ class PeakHoursViewModel extends ChangeNotifier {
     _isLoading = true;
     _notify();
 
-    _peakHours = await _repository.fetch(restaurant.id);
+    final saved = await _repository.saved(restaurant.id);
+    if (saved != null && _peakHours == null) {
+      _peakHours = saved;
+      _savedAt = saved.updatedAt;
+      _notify();
+    }
+
+    final result = await _repository.fetch(restaurant.id);
     _isLoading = false;
+    if (!result.isFromCache || saved == null) {
+      _peakHours = result.peakHours;
+      _savedAt = null;
+    }
     _notify();
   }
 
