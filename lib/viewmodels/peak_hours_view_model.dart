@@ -6,11 +6,14 @@ import 'package:flutter/foundation.dart';
 import 'package:uniandes_food/models/peak_hours.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/repositories/peak_hours_repository.dart';
+import 'package:uniandes_food/services/telemetry_service.dart';
 
 class PeakHoursViewModel extends ChangeNotifier {
   PeakHoursViewModel({
     required this.restaurant,
+    String? userId,
     PeakHoursRepository? repository,
+    TelemetryService? telemetryService,
     Connectivity? connectivity,
     DateTime Function()? now,
   }) : _repository = repository ?? PeakHoursRepository.instance,
@@ -18,6 +21,13 @@ class PeakHoursViewModel extends ChangeNotifier {
     _connectivitySubscription = (connectivity ?? Connectivity())
         .onConnectivityChanged
         .listen(_onConnectivityChanged, onError: (Object _) {});
+    unawaited(
+      (telemetryService ?? TelemetryService()).trackBestTimeViewed(
+        restaurantId: restaurant.id,
+        hour: _now().hour,
+        userId: userId,
+      ),
+    );
     unawaited(load());
   }
 

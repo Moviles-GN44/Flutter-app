@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/models/peak_hours.dart';
 import 'package:uniandes_food/models/restaurant.dart';
+import 'package:uniandes_food/repositories/auth_repository.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/peak_hours_view_model.dart';
@@ -20,6 +21,7 @@ class BestTimeScreen extends StatefulWidget {
 class _BestTimeScreenState extends State<BestTimeScreen> {
   late final PeakHoursViewModel _viewModel = PeakHoursViewModel(
     restaurant: widget.restaurant,
+    userId: AuthRepository.instance.currentUser?.uid,
   );
 
   @override
