@@ -55,14 +55,24 @@ class _BestTimeScreenState extends State<BestTimeScreen> {
                 'Wait time reported by students at each hour of the day',
                 style: AppText.caption,
               ),
+              if (_viewModel.isOffline) ...[
+                const SizedBox(height: 12),
+                _OfflineNotice(
+                  message: _viewModel.isLoading
+                      ? 'Back online · updating the wait times…'
+                      : peakHours.slots.isEmpty
+                      ? 'Offline · connect once to load the wait time reports'
+                      : 'Offline · the wait times may be outdated',
+                ),
+              ],
               if (_viewModel.savedAt case final savedAt?) ...[
                 const SizedBox(height: 12),
                 _SavedNotice(savedAt: savedAt),
               ],
               const SizedBox(height: 16),
-              if (peakHours.slots.isEmpty)
-                const _NoReports()
-              else ...[
+              if (peakHours.slots.isEmpty) ...[
+                if (!_viewModel.isOffline) const _NoReports(),
+              ] else ...[
                 _BestSlotCard(
                   slot: _viewModel.bestSlot!,
                   isNow: _viewModel.bestSlot!.hour == _viewModel.currentHour,
@@ -89,6 +99,44 @@ class _BestTimeScreenState extends State<BestTimeScreen> {
 }
 
 String _hourLabel(int hour) => '${hour.toString().padLeft(2, '0')}:00';
+
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.waitMediumTint,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 18,
+              color: AppColors.waitMediumText,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: AppText.caption.copyWith(
+                  color: AppColors.waitMediumText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SavedNotice extends StatelessWidget {
   const _SavedNotice({required this.savedAt});
