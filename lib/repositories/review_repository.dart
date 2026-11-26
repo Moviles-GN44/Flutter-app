@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -30,14 +31,18 @@ class ReviewRepository {
           .collection('reviews')
           .where('restaurantId', isEqualTo: restaurantId)
           .get();
-      final reviews = [
-        for (final doc in snapshot.docs)
-          if (WaitTime.values.asNameMap().containsKey(doc.data()['waitTime']))
-            Review.fromMap(
-              doc.data(),
-              createdAt: (doc.data()['createdAt'] as Timestamp?)?.toDate(),
-            ),
-      ];
+      final reviews = Timeline.timeSync(
+        'ReviewRepository.parseReviews',
+        () => [
+          for (final doc in snapshot.docs)
+            if (doc.data() case final data
+                when WaitTime.names.containsKey(data['waitTime']))
+              Review.fromMap(
+                data,
+                createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+              ),
+        ],
+      );
       return (reviews: reviews, isFromCache: snapshot.metadata.isFromCache);
     } on FirebaseException {
       return (reviews: const <Review>[], isFromCache: false);
