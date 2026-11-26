@@ -148,6 +148,17 @@
   </div>
 
   <div class="bq">
+    <h2>BQ11 · Felipe · Flutter</h2>
+    <p class="question">¿A qué horas del día debería la app sugerir restaurantes alternativos para repartir la demanda y que menos estudiantes lleguen a lugares con filas largas?</p>
+    <p class="result">Horas para sugerir alternativas: <b id="bq11-hours">N/A</b> · Reportes de espera: <b id="bq11-reports">0</b> · Consultas de "Best time to go": <b id="bq11-views">0</b></p>
+    <div class="charts">
+      <div class="chart"><h3>% de reportes con más de 15 min por hora</h3><div><canvas id="chart-bq11-slow"></canvas></div></div>
+      <div class="chart"><h3>Reportes de espera por hora</h3><div><canvas id="chart-bq11-reports"></canvas></div></div>
+      <div class="chart"><h3>Consultas de "Best time to go" por hora</h3><div><canvas id="chart-bq11-views"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
     <h2>Reseñas por QR · Kotlin</h2>
     <p class="question">Calificaciones y reseñas completadas después de escanear el QR.</p>
     <p class="result">Calificación promedio: <b id="qr-rating">N/A</b></p>
@@ -291,6 +302,14 @@
     show('bq10-pct', bq10.building_pct, '%');
     ring('chart-bq10-mode', ['Por edificio', 'Genérica / GPS'], [bq10.building, bq10.generic]);
     bars('chart-bq10-buildings', bq10.buildings);
+
+    const bq11 = data.bq11_felipe;
+    document.getElementById('bq11-hours').textContent = bq11.suggest_hours.length ? bq11.suggest_hours.join(', ') : 'Ninguna con suficientes datos';
+    show('bq11-reports', bq11.reports);
+    show('bq11-views', bq11.views);
+    bars('chart-bq11-slow', bq11.slow_pct, ORANGE, {}, { scales: { y: { beginAtZero: true, max: 100 } } });
+    bars('chart-bq11-reports', bq11.reports_by_hour);
+    bars('chart-bq11-views', bq11.views_by_hour, GRAY);
 
     const qr = data.qr_reviews;
     show('qr-rating', qr.avg_rating, ' / 5');

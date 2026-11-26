@@ -6,7 +6,7 @@ import time
 import urllib.request
 import webbrowser
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -31,6 +31,7 @@ FLUTTER_EVENTS = [
     "filter_session_completed",
     "filter_applied",
     "feature_opened",
+    "best_time_viewed",
 ]
 
 RESTAURANT_NAMES = {
@@ -49,6 +50,11 @@ METHODS = ["qr", "manual"]
 FEATURES = ["home", "explore", "favorites", "profile", "qr_scanner"]
 SECONDS_BUCKETS = [(5, "< 5s"), (10, "5-10s"), (20, "10-20s"), (None, "> 20s")]
 LOAD_BUCKETS = [(1, "< 1s"), (2, "1-2s"), (5, "2-5s"), (None, "> 5s")]
+HOURS = range(7, 20)
+WAIT_TIMES = ["under5", "fiveTo15", "over15"]
+BOGOTA = timezone(timedelta(hours=-5))
+MIN_REPORTS = 3
+SLOW_SHARE = 50
 
 
 def firebase_config():
@@ -74,35 +80,45 @@ def decode(value):
     return None
 
 
-def fetch_events():
+def run_query(structured_query):
     project_id, api_key = firebase_config()
     url = (
         f"https://firestore.googleapis.com/v1/projects/{project_id}"
         f"/databases/(default)/documents:runQuery?key={api_key}"
     )
-    names = KOTLIN_EVENTS + FLUTTER_EVENTS
-    query = {
-        "structuredQuery": {
-            "from": [{"collectionId": "telemetry_events"}],
-            "where": {
-                "fieldFilter": {
-                    "field": {"fieldPath": "eventName"},
-                    "op": "IN",
-                    "value": {
-                        "arrayValue": {"values": [{"stringValue": n} for n in names]}
-                    },
-                }
-            },
-        }
-    }
     request = urllib.request.Request(
         url,
-        data=json.dumps(query).encode(),
+        data=json.dumps({"structuredQuery": structured_query}).encode(),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         rows = json.load(response)
     return [decode({"mapValue": row["document"]}) for row in rows if "document" in row]
+
+
+def fetch_events():
+    names = KOTLIN_EVENTS + FLUTTER_EVENTS
+    return run_query({
+        "from": [{"collectionId": "telemetry_events"}],
+        "where": {
+            "fieldFilter": {
+                "field": {"fieldPath": "eventName"},
+                "op": "IN",
+                "value": {"arrayValue": {"values": [{"stringValue": n} for n in names]}},
+            }
+        },
+    })
+
+
+def fetch_reviews():
+    return run_query({
+        "from": [{"collectionId": "reviews"}],
+        "select": {"fields": [{"fieldPath": "waitTime"}, {"fieldPath": "createdAt"}]},
+    })
+
+
+def fetch_data():
+    return fetch_events(), fetch_reviews()
 
 
 def params(event):
@@ -305,7 +321,38 @@ def bq9_juanjo(events):
     }
 
 
-def calculate_metrics(events):
+def review_hour(review):
+    created = review.get("createdAt")
+    if not isinstance(created, str):
+        return None
+    moment = datetime.fromisoformat(created[:19]).replace(tzinfo=timezone.utc)
+    return moment.astimezone(BOGOTA).hour
+
+
+def bq11_felipe(events, reviews):
+    reports = Counter()
+    slow = Counter()
+    for review in reviews:
+        hour = review_hour(review)
+        wait = review.get("waitTime")
+        if hour in HOURS and wait in WAIT_TIMES:
+            reports[hour] += 1
+            slow[hour] += wait == "over15"
+    views = Counter(params(e).get("hour") for e in named(events, "best_time_viewed"))
+    slow_pct = {h: round(slow[h] / reports[h] * 100, 1) if reports[h] else 0 for h in HOURS}
+    return {
+        "reports": sum(reports.values()),
+        "views": sum(views[h] for h in HOURS),
+        "slow_pct": {f"{h}:00": slow_pct[h] for h in HOURS},
+        "reports_by_hour": {f"{h}:00": reports[h] for h in HOURS},
+        "views_by_hour": {f"{h}:00": views[h] for h in HOURS},
+        "suggest_hours": [
+            f"{h}:00" for h in HOURS if reports[h] >= MIN_REPORTS and slow_pct[h] >= SLOW_SHARE
+        ],
+    }
+
+
+def calculate_metrics(events, reviews):
     flutter = sum(e.get("platform") == "Flutter" for e in events)
     latest = sorted(events, key=lambda e: number(e.get("timestamp")) or 0, reverse=True)
     return {
@@ -322,6 +369,7 @@ def calculate_metrics(events):
         "bq6_juanjo": bq6_juanjo(events),
         "bq7_catalina": bq7_catalina(events),
         "bq9_juanjo": bq9_juanjo(events),
+        "bq11_felipe": bq11_felipe(events, reviews),
         "raw_events": [
             {k: e.get(k) for k in ("timestamp", "eventName", "platform", "params")}
             for e in latest[:30]
@@ -405,7 +453,21 @@ def demo_events():
         mode = "CAMPUS_BUILDING" if random.random() < 0.8 else "GENERIC_SEARCH"
         building = random.choice(["ML", "RGD", "Franco", "SD", "C", "W"]) if mode == "CAMPUS_BUILDING" else "NONE"
         events.append(event("samuel_bq_building_filter", "Android-Kotlin", {"filter_mode": mode, "building": building}))
+    for _ in range(40):
+        hour = random.choices(list(HOURS), weights=[1, 1, 2, 3, 4, 8, 9, 5, 3, 2, 2, 1, 1])[0]
+        events.append(event("best_time_viewed", "Flutter", {"restaurantId": random.choice(restaurants), "hour": hour}))
     return events
+
+
+def demo_reviews():
+    reviews = []
+    for _ in range(120):
+        hour = random.choice(list(HOURS))
+        busy = 0.7 if hour in (12, 13) else 0.15
+        wait = "over15" if random.random() < busy else random.choice(["under5", "fiveTo15"])
+        created = datetime.now(BOGOTA).replace(hour=hour) - timedelta(days=random.randint(0, 20))
+        reviews.append({"waitTime": wait, "createdAt": created.astimezone(timezone.utc).isoformat()})
+    return reviews
 
 
 def make_handler(load):
@@ -415,7 +477,7 @@ def make_handler(load):
         def do_GET(self):
             if self.path == "/api/stats":
                 try:
-                    body, status = json.dumps(calculate_metrics(load())).encode(), 200
+                    body, status = json.dumps(calculate_metrics(*load())).encode(), 200
                 except Exception as error:
                     body, status = json.dumps({"error": str(error)}).encode(), 500
                 self._send(status, "application/json", body)
@@ -444,8 +506,8 @@ def main():
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    sample = demo_events() if args.demo else None
-    load = (lambda: sample) if args.demo else fetch_events
+    sample = (demo_events(), demo_reviews()) if args.demo else None
+    load = (lambda: sample) if args.demo else fetch_data
 
     url = f"http://localhost:{args.port}"
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(load))

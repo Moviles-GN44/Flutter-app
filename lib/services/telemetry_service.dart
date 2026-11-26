@@ -136,6 +136,26 @@ class TelemetryService {
     }
   }
 
+  Future<void> trackBestTimeViewed({
+    required String restaurantId,
+    required int hour,
+    String? userId,
+  }) async {
+    try {
+      final document = _firestore.collection('telemetry_events').doc();
+
+      await document.set({
+        'eventId': document.id,
+        'eventName': 'best_time_viewed',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'platform': 'Flutter',
+        'params': {'restaurantId': restaurantId, 'hour': hour, 'userId': ?userId},
+      });
+    } on FirebaseException {
+      return;
+    }
+  }
+
   /// BQ7: records when a student opens one of the main app features.
   Future<void> trackFeatureOpened({
     required String feature,
