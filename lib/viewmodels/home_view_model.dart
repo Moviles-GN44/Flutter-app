@@ -35,12 +35,6 @@ class HomeViewModel extends ChangeNotifier {
   late final StreamSubscription<String> _reviewSubscription;
   late final StreamSubscription<List<Restaurant>> _restaurantsSubscription;
 
-  static const _reportMinutes = {
-    WaitTime.under5: 3,
-    WaitTime.fiveTo15: 10,
-    WaitTime.over15: 20,
-  };
-
   final RestaurantRepository _repository;
   final TelemetryService _telemetryService;
   final ReviewRepository _reviewRepository;
@@ -111,7 +105,7 @@ class HomeViewModel extends ChangeNotifier {
 
       if (weight == 0) continue;
 
-      weightedMinutes += _reportMinutes[review.waitTime]! * weight;
+      weightedMinutes += review.waitTime.minutes * weight;
       totalWeight += weight;
       count++;
     }
@@ -120,7 +114,7 @@ class HomeViewModel extends ChangeNotifier {
     _reportsFromCache = result.isFromCache;
     _reportedWait = totalWeight == 0
         ? null
-        : _waitTimeFor(weightedMinutes / totalWeight);
+        : WaitTime.fromMinutes(weightedMinutes / totalWeight);
 
     notifyListeners();
   }
@@ -135,12 +129,6 @@ class HomeViewModel extends ChangeNotifier {
         : (age.inDays <= 14 && sameTimeOfDay ? 1.0 : 0.0);
 
     return review.verified ? recency * 2 : recency;
-  }
-
-  WaitTime _waitTimeFor(double minutes) {
-    if (minutes < 5) return WaitTime.under5;
-    if (minutes <= 15) return WaitTime.fiveTo15;
-    return WaitTime.over15;
   }
 
   @override

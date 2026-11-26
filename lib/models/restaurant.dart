@@ -5,15 +5,24 @@ import 'package:uniandes_food/data/campus.dart';
 import 'package:uniandes_food/utils/currency.dart';
 
 enum WaitTime {
-  under5('UNDER 5 MIN', '< 5 min', 'Wait time under 5 minutes'),
-  fiveTo15('5–15 MIN', '5–15 min', 'Wait time between 5 and 15 minutes'),
-  over15('OVER 15 MIN', '> 15 min', 'Wait time over 15 minutes');
+  under5('UNDER 5 MIN', '< 5 min', 'Wait time under 5 minutes', 3),
+  fiveTo15('5–15 MIN', '5–15 min', 'Wait time between 5 and 15 minutes', 10),
+  over15('OVER 15 MIN', '> 15 min', 'Wait time over 15 minutes', 20);
 
-  const WaitTime(this.label, this.shortLabel, this.spokenLabel);
+  const WaitTime(this.label, this.shortLabel, this.spokenLabel, this.minutes);
 
   final String label;
   final String shortLabel;
   final String spokenLabel;
+  final int minutes;
+
+  static final names = WaitTime.values.asNameMap();
+
+  static WaitTime fromMinutes(double minutes) {
+    if (minutes < 5) return under5;
+    if (minutes <= 15) return fiveTo15;
+    return over15;
+  }
 }
 
 class Restaurant {
@@ -210,7 +219,7 @@ class Review {
       userName: data['userName'] as String,
       rating: data['rating'] as int,
       comment: data['comment'] as String,
-      waitTime: WaitTime.values.byName(data['waitTime'] as String),
+      waitTime: WaitTime.names[data['waitTime']]!,
       tags: List<String>.from(data['tags'] as List),
       verified: data['verified'] as bool,
       createdAt: createdAt,
