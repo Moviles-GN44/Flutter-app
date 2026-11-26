@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/navigation/app_navigation.dart';
+import 'package:uniandes_food/screens/restaurant/best_time_screen.dart';
 import 'package:uniandes_food/screens/review/scan_qr_screen.dart';
 import 'package:uniandes_food/screens/review/write_review_screen.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
@@ -64,6 +65,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
     );
   }
 
+  void _openBestTime() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BestTimeScreen(restaurant: _restaurant),
+      ),
+    );
+  }
+
   void _share() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -110,6 +119,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       restaurant: _restaurant,
                       tab: _tab,
                       onTabChanged: (tab) => setState(() => _tab = tab),
+                      onBestTime: _openBestTime,
                     ),
                     const SizedBox(height: 12),
                     Padding(
@@ -237,11 +247,13 @@ class _SummaryCard extends StatelessWidget {
     required this.restaurant,
     required this.tab,
     required this.onTabChanged,
+    required this.onBestTime,
   });
 
   final Restaurant restaurant;
   final _DetailTab tab;
   final ValueChanged<_DetailTab> onTabChanged;
+  final VoidCallback onBestTime;
 
   @override
   Widget build(BuildContext context) {
@@ -286,6 +298,18 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onBestTime,
+              icon: const Icon(Icons.schedule_rounded, size: 18),
+              label: const Text('Best time to go'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.tealDark,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
           _TabBar(current: tab, onChanged: onTabChanged),
         ],
       ),
