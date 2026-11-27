@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/viewmodels/comparison_view_model.dart';
+import 'package:uniandes_food/viewmodels/explore_view_model.dart';
 import 'package:uniandes_food/utils/currency.dart';
 
 class CompareRestaurantsScreen extends StatefulWidget {
   const CompareRestaurantsScreen({
     super.key,
-    required this.restaurants,
+    required this.exploreViewModel,
   });
 
-  final List<Restaurant> restaurants;
+  final ExploreViewModel exploreViewModel;
 
   @override
   State<CompareRestaurantsScreen> createState() =>
@@ -25,7 +26,22 @@ class _CompareRestaurantsScreenState
   static const _textColor = Color(0xFF292A2E);
 
   @override
+  void initState() {
+    super.initState();
+    _updateRestaurants();
+    widget.exploreViewModel.addListener(_updateRestaurants);
+  }
+
+  void _updateRestaurants() {
+    _viewModel.updateRestaurants(
+      widget.exploreViewModel.results,
+      isFromCache: widget.exploreViewModel.isFromCache,
+    );
+  }
+
+  @override
   void dispose() {
+    widget.exploreViewModel.removeListener(_updateRestaurants);
     _viewModel.dispose();
     super.dispose();
   }
@@ -64,6 +80,33 @@ class _CompareRestaurantsScreenState
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              if (_viewModel.isFromCache) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  color: const Color(0xFFFFF3D6),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.cloud_off_outlined,
+                        size: 18,
+                        color: Color(0xFF8A6200),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Showing saved restaurant data. Updates may be pending.',
+                          style: TextStyle(
+                            color: Color(0xFF8A6200),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               const Text(
                 'Compare your options',
                 style: TextStyle(
@@ -97,7 +140,20 @@ class _CompareRestaurantsScreenState
 
               const SizedBox(height: 24),
 
-              if (comparison == null)
+              if (_viewModel.restaurants.length < 2)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: Text(
+                      _viewModel.isFromCache
+                          ? 'Not enough saved restaurants to compare. Connect to the internet to update the results.'
+                          : 'Not enough restaurants match your filters. Return to Explore to change them.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                )
+              else if (comparison == null)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 32),
                   child: Center(
@@ -201,7 +257,7 @@ class _CompareRestaurantsScreenState
     required Restaurant? excluded,
     required ValueChanged<Restaurant> onSelected,
   }) {
-    final available = widget.restaurants
+    final available = _viewModel.restaurants
         .where((restaurant) => restaurant.id != excluded?.id)
         .toList();
 
