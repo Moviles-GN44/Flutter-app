@@ -30,7 +30,7 @@ class ExploreViewModel extends ChangeNotifier {
     _subscription = (repository ?? CampusRestaurantsRepository())
         .watchRestaurantsWithMetadata()
         .listen(_onRestaurants, onError: _onError);
-    _location.addListener(notifyListeners);
+    _location.addListener(_onLocationChanged);
     _auth?.addListener(_onAuthChanged);
     _onAuthChanged();
     unawaited(_loadSavedFilters());
@@ -58,6 +58,7 @@ class ExploreViewModel extends ChangeNotifier {
   late final StreamSubscription<RestaurantsSnapshot> _subscription;
 
   List<Restaurant> _restaurants = const [];
+  List<Restaurant>? _cachedResults;
   RestaurantFilters _filters = const RestaurantFilters();
   bool _showingResults = false;
   bool _isLoading = true;
@@ -101,6 +102,7 @@ class ExploreViewModel extends ChangeNotifier {
     _startSession();
     _usedSuggestion = true;
     _filters = suggestion.filters;
+    _cachedResults = null;
 
     _saveCurrentFilters();
 
@@ -119,9 +121,15 @@ class ExploreViewModel extends ChangeNotifier {
   /// closest first.
   List<Restaurant> get results {
     return Timeline.timeSync('ExploreViewModel.results', () {
+      final cached = _cachedResults;
+      if (cached != null) return List<Restaurant>.of(cached);
+
       final measured = [for (final r in _restaurants) _location.measure(r)];
-      return measured.where(_filters.matches).toList()
+      final results = measured.where(_filters.matches).toList()
         ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+      _cachedResults = results;
+      // Return a separate list so callers cannot change the cached order.
+      return List<Restaurant>.of(results);
     });
   }
 
@@ -132,6 +140,7 @@ class ExploreViewModel extends ChangeNotifier {
       if (_disposed || _filtersModified) return;
 
       _filters = savedFilters;
+      _cachedResults = null;
       notifyListeners();
     } catch (error) {
       debugPrint('Could not load saved filters: $error');
@@ -210,6 +219,7 @@ class ExploreViewModel extends ChangeNotifier {
     _startSession();
     _filterChanges++;
     _filters = const RestaurantFilters();
+    _cachedResults = null;
     _showingResults = false;
 
     _saveCurrentFilters();
@@ -242,6 +252,7 @@ class ExploreViewModel extends ChangeNotifier {
       dietary: dietary ?? f.dietary,
       paymentMethods: paymentMethods ?? f.paymentMethods,
     );
+    _cachedResults = null;
 
     _saveCurrentFilters();
 
@@ -252,10 +263,16 @@ class ExploreViewModel extends ChangeNotifier {
       ? ({...values}..remove(value))
       : {...values, value};
 
+  void _onLocationChanged() {
+    _cachedResults = null;
+    notifyListeners();
+  }
+
   void _onRestaurants(RestaurantsSnapshot snapshot) {
     if (_disposed) return;
 
     _restaurants = snapshot.restaurants;
+    _cachedResults = null;
     _isFromCache = snapshot.isFromCache;
     _hasReceivedSnapshot = true;
     _isLoading = false;
@@ -318,7 +335,7 @@ class ExploreViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _auth?.removeListener(_onAuthChanged);
-    _location.removeListener(notifyListeners);
+    _location.removeListener(_onLocationChanged);
     _subscription.cancel();
     super.dispose();
   }
