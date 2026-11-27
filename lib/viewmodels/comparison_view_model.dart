@@ -6,8 +6,16 @@ class ComparisonViewModel extends ChangeNotifier {
   Restaurant? _firstRestaurant;
   Restaurant? _secondRestaurant;
 
+  List<Restaurant> _restaurants = [];
+  bool _isFromCache = false;
+
   Restaurant? get firstRestaurant => _firstRestaurant;
   Restaurant? get secondRestaurant => _secondRestaurant;
+
+  List<Restaurant> get restaurants =>
+      List.unmodifiable(_restaurants);
+
+  bool get isFromCache => _isFromCache;
 
   bool get canCompare =>
       _firstRestaurant != null &&
@@ -21,6 +29,31 @@ class ComparisonViewModel extends ChangeNotifier {
       firstRestaurant: _firstRestaurant!,
       secondRestaurant: _secondRestaurant!,
     );
+  }
+
+  void updateRestaurants(
+    List<Restaurant> restaurants, {
+    required bool isFromCache,
+  }) {
+    _restaurants = List.of(restaurants);
+    _isFromCache = isFromCache;
+
+    _firstRestaurant = _findRestaurant(_firstRestaurant?.id);
+    _secondRestaurant = _findRestaurant(_secondRestaurant?.id);
+
+    notifyListeners();
+  }
+
+  Restaurant? _findRestaurant(String? id) {
+    if (id == null) return null;
+
+    for (final restaurant in _restaurants) {
+      if (restaurant.id == id) {
+        return restaurant;
+      }
+    }
+
+    return null;
   }
 
   void selectFirstRestaurant(Restaurant restaurant) {

@@ -66,7 +66,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CompareRestaurantsScreen(
-          restaurants: _viewModel.results,
+          exploreViewModel: _viewModel,
         ),
       ),
     );
