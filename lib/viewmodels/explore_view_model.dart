@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' show Timeline;
 
 import 'package:flutter/foundation.dart';
 
@@ -117,9 +118,11 @@ class ExploreViewModel extends ChangeNotifier {
   /// Restaurants that match the filters, measured from the student and
   /// closest first.
   List<Restaurant> get results {
-    final measured = [for (final r in _restaurants) _location.measure(r)];
-    return measured.where(_filters.matches).toList()
-      ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+    return Timeline.timeSync('ExploreViewModel.results', () {
+      final measured = [for (final r in _restaurants) _location.measure(r)];
+      return measured.where(_filters.matches).toList()
+        ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+    });
   }
 
   Future<void> _loadSavedFilters() async {
