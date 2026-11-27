@@ -159,6 +159,18 @@
   </div>
 
   <div class="bq">
+    <h2>BQ12 · Catalina · Flutter</h2>
+    <p class="question">¿Qué categorías de comida y preferencias alimentarias tienen mayor demanda y menor cobertura entre los restaurantes registrados?</p>
+    <p class="result">Mayor brecha positiva: <b id="bq12-top">N/A</b> · Búsquedas: <b id="bq12-searches">0</b> · Restaurantes: <b id="bq12-restaurants">0</b></p>
+    <p class="question" id="bq12-note"></p>
+    <div class="charts">
+      <div class="chart"><h3>Categorías: demanda y cobertura (%)</h3><div><canvas id="chart-bq12-category"></canvas></div></div>
+      <div class="chart"><h3>Preferencias alimentarias: demanda y cobertura (%)</h3><div><canvas id="chart-bq12-dietary"></canvas></div></div>
+    </div>
+    <p class="question">Demanda: porcentaje de búsquedas registradas. Cobertura: porcentaje del catálogo actual. Brecha: demanda menos cobertura (puntos porcentuales). Los filtros no equivalen a compras.</p>
+  </div>
+
+  <div class="bq">
     <h2>Reseñas por QR · Kotlin</h2>
     <p class="question">Calificaciones y reseñas completadas después de escanear el QR.</p>
     <p class="result">Calificación promedio: <b id="qr-rating">N/A</b></p>
@@ -310,6 +322,27 @@
     bars('chart-bq11-slow', bq11.slow_pct, ORANGE, {}, { scales: { y: { beginAtZero: true, max: 100 } } });
     bars('chart-bq11-reports', bq11.reports_by_hour);
     bars('chart-bq11-views', bq11.views_by_hour, GRAY);
+
+    const bq12 = data.bq12_catalina;
+    if (bq12) {
+      const optionName = row => row.type === 'dietary' ? (RESTRICTIONS[row.option] || row.option) : row.option;
+      show('bq12-searches', bq12.searches);
+      show('bq12-restaurants', bq12.restaurants);
+      document.getElementById('bq12-top').textContent = bq12.top_gap
+        ? `${optionName(bq12.top_gap)} (+${bq12.top_gap.gap} pp)`
+        : (!bq12.searches || !bq12.restaurants ? 'Datos insuficientes' : 'Sin brechas positivas');
+      document.getElementById('bq12-note').textContent =
+        `Eventos excluidos por falta de applyId: ${bq12.skipped_events}. Una búsqueda puede incluir varias preferencias.`;
+      for (const kind of ['category', 'dietary']) {
+        const rows = bq12.rows.filter(row => row.type === kind);
+        draw(`chart-bq12-${kind}`, 'bar', rows.map(optionName), [
+          { label: 'Demanda', data: rows.map(row => row.demand_pct), backgroundColor: BLUE },
+          { label: 'Cobertura', data: rows.map(row => row.supply_pct), backgroundColor: ORANGE },
+        ], { indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100, ticks: { callback: value => value + '%' } } } });
+      }
+    } else {
+      document.getElementById('bq12-note').textContent = 'BQ12 no está disponible en esta versión del servidor.';
+    }
 
     const qr = data.qr_reviews;
     show('qr-rating', qr.avg_rating, ' / 5');
