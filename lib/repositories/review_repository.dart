@@ -13,6 +13,13 @@ class ReviewException implements Exception {
 
 typedef ReviewList = ({List<Review> reviews, bool isFromCache});
 
+typedef RestaurantReviewList = ({
+  List<RestaurantReview> reviews,
+  bool isFromCache,
+});
+
+typedef RestaurantStats = ({double rating, int reviewCount});
+
 class ReviewRepository {
   ReviewRepository({FirebaseFirestore? firestore}) : _injected = firestore;
 
@@ -47,6 +54,80 @@ class ReviewRepository {
     } on FirebaseException {
       return (reviews: const <Review>[], isFromCache: false);
     }
+  }
+
+  /// Reviews of the restaurant, pending first and then newest first.
+  ///
+  /// With metadata changes, a review written offline shows up right away
+  /// marked as pending, and again when the server confirms it.
+  Stream<RestaurantReviewList> watchReviews(String restaurantId) {
+    try {
+      return _firestore
+          .collection('reviews')
+          .where('restaurantId', isEqualTo: restaurantId)
+          .snapshots(includeMetadataChanges: true)
+          .map(
+            (snapshot) => (
+              reviews: [
+                for (final doc in snapshot.docs)
+                  _review(doc.data(), doc.metadata.hasPendingWrites),
+              ]..sort(_newestFirst),
+              isFromCache: snapshot.metadata.isFromCache,
+            ),
+          );
+    } on FirebaseException catch (error) {
+      return Stream<RestaurantReviewList>.error(error);
+    }
+  }
+
+  /// Rating and review count from the restaurant document. They change when
+  /// a new review reaches the server. Null when the document does not exist.
+  Stream<RestaurantStats?> watchStats(String restaurantId) {
+    try {
+      return _firestore
+          .collection('restaurants')
+          .doc(restaurantId)
+          .snapshots()
+          .map((doc) {
+            final data = doc.data();
+            if (data == null) return null;
+            return (
+              rating: (data['rating'] as num?)?.toDouble() ?? 0,
+              reviewCount: (data['reviewCount'] as num?)?.toInt() ?? 0,
+            );
+          });
+    } on FirebaseException catch (error) {
+      return Stream<RestaurantStats?>.error(error);
+    }
+  }
+
+  static RestaurantReview _review(Map<String, dynamic> data, bool isPending) {
+    final author = data['userName'];
+    final comment = data['comment'];
+    final createdAt = data['createdAt'];
+    return RestaurantReview(
+      author: author is String && author.trim().isNotEmpty
+          ? author.trim()
+          : 'Student',
+      comment: comment is String ? comment : '',
+      verified: data['verified'] == true,
+      rating: (data['rating'] as num?)?.round(),
+      createdAt: switch (createdAt) {
+        Timestamp() => createdAt.toDate(),
+        int() => DateTime.fromMillisecondsSinceEpoch(createdAt),
+        _ => null,
+      },
+      isPending: isPending,
+    );
+  }
+
+  static int _newestFirst(RestaurantReview a, RestaurantReview b) {
+    final aDate = a.createdAt;
+    final bDate = b.createdAt;
+    if (aDate == null && bDate == null) return 0;
+    if (aDate == null) return -1;
+    if (bDate == null) return 1;
+    return bDate.compareTo(aDate);
   }
 
   Future<bool> addReview(Review review) async {

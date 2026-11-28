@@ -192,11 +192,23 @@ class RestaurantReview {
     required this.author,
     required this.comment,
     this.verified = false,
+    this.rating,
+    this.createdAt,
+    this.isPending = false,
   });
 
   final String author;
   final String comment;
   final bool verified;
+
+  /// Stars from 1 to 5, when known.
+  final int? rating;
+
+  /// Null while the server has not set the date yet.
+  final DateTime? createdAt;
+
+  /// Written offline and not yet sent to the server.
+  final bool isPending;
 }
 
 class Review {
