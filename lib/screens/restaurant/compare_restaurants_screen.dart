@@ -28,8 +28,8 @@ class _CompareRestaurantsScreenState
   @override
   void initState() {
     super.initState();
-    _updateRestaurants();
     widget.exploreViewModel.addListener(_updateRestaurants);
+    _viewModel.restoreSelection();
   }
 
   void _updateRestaurants() {
