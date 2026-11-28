@@ -50,6 +50,16 @@
   </div>
 
   <div class="bq">
+    <h2>BQ1 · Samuel · Kotlin</h2>
+    <p class="question">¿Qué pantallas o funcionalidades de Uniandes Food tienen el mayor tiempo promedio de carga durante su uso?</p>
+    <p class="result">Pantalla más lenta: <b id="bq1-slowest">N/A</b> · Mediciones: <b id="bq1-samples">0</b> · Caché: <b id="bq1-cache">N/A</b> · En vivo: <b id="bq1-live">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Tiempo promedio de carga por pantalla (ms)</h3><div><canvas id="chart-bq1-screens"></canvas></div></div>
+      <div class="chart"><h3>Carga promedio desde caché y en vivo (ms)</h3><div><canvas id="chart-bq1-source"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
     <h2>BQ2 · Felipe · Flutter</h2>
     <p class="question">¿Cuánto tarda el mapa en cargar los restaurantes cercanos y qué porcentaje de estudiantes cierra la app antes de que terminen de cargar?</p>
     <p class="result">Carga promedio: <b id="bq2-avg">N/A</b> · Mediana: <b id="bq2-median">N/A</b> · Abandonan antes de cargar: <b id="bq2-abandon">N/A</b> · Espera promedio antes de abandonar: <b id="bq2-wait">N/A</b></p>
@@ -159,13 +169,24 @@
   </div>
 
   <div class="bq">
+    <h2>BQ12 · Catalina · Flutter</h2>
+    <p class="question">¿Qué categorías de comida y preferencias alimentarias tienen mayor demanda y menor cobertura entre los restaurantes registrados?</p>
+    <p class="result">Mayor brecha positiva: <b id="bq12-top">N/A</b> · Búsquedas: <b id="bq12-searches">0</b> · Restaurantes: <b id="bq12-restaurants">0</b></p>
+    <p class="question" id="bq12-note"></p>
+    <div class="charts">
+      <div class="chart"><h3>Categorías: demanda y cobertura (%)</h3><div><canvas id="chart-bq12-category"></canvas></div></div>
+      <div class="chart"><h3>Preferencias alimentarias: demanda y cobertura (%)</h3><div><canvas id="chart-bq12-dietary"></canvas></div></div>
+    </div>
+    <p class="question">Demanda: porcentaje de búsquedas registradas. Cobertura: porcentaje del catálogo actual. Brecha: demanda menos cobertura (puntos porcentuales). Los filtros no equivalen a compras.</p>
+  </div>
+
+  <div class="bq">
     <h2>BQ13 · Juan José · Flutter</h2>
     <p class="question">¿Qué métodos de pago aceptan realmente los restaurantes del campus y qué tan lejos está eso de los métodos que los estudiantes prefieren usar?</p>
     <p class="result">Método con más búsquedas por restaurante: <b id="bq13-top">N/A</b> · Búsquedas con filtro de pago: <b id="bq13-searches">0</b> · Restaurantes: <b id="bq13-restaurants">0</b> · Búsquedas que algún restaurante puede atender: <b id="bq13-served">N/A</b></p>
     <div class="charts">
       <div class="chart"><h3>Búsquedas que piden el método vs restaurantes que lo aceptan</h3><div><canvas id="chart-bq13-compare"></canvas></div></div>
     </div>
-  </div>
   </div>
 
   <div class="bq">
@@ -255,6 +276,16 @@
     show('kpi-flutter', data.summary.flutter);
     show('kpi-kotlin', data.summary.kotlin);
 
+    const bq1 = data.bq1_samuel;
+    if (bq1) {
+      document.getElementById('bq1-slowest').textContent = bq1.slowest ? `${bq1.slowest} (${bq1.slowest_ms} ms)` : 'N/A';
+      show('bq1-samples', bq1.samples);
+      show('bq1-cache', bq1.avg_cache, ' ms');
+      show('bq1-live', bq1.avg_live, ' ms');
+      bars('chart-bq1-screens', bq1.screens, BLUE, {}, horizontal);
+      bars('chart-bq1-source', { 'Caché': zero(bq1.avg_cache), 'En vivo': zero(bq1.avg_live) }, [BLUE, ORANGE]);
+    }
+
     const bq2 = data.bq2_felipe;
     show('bq2-avg', bq2.avg_load, ' s');
     show('bq2-median', bq2.median_load, ' s');
@@ -320,6 +351,27 @@
     bars('chart-bq11-slow', bq11.slow_pct, ORANGE, {}, { scales: { y: { beginAtZero: true, max: 100 } } });
     bars('chart-bq11-reports', bq11.reports_by_hour);
     bars('chart-bq11-views', bq11.views_by_hour, GRAY);
+
+    const bq12 = data.bq12_catalina;
+    if (bq12) {
+      const optionName = row => row.type === 'dietary' ? (RESTRICTIONS[row.option] || row.option) : row.option;
+      show('bq12-searches', bq12.searches);
+      show('bq12-restaurants', bq12.restaurants);
+      document.getElementById('bq12-top').textContent = bq12.top_gap
+        ? `${optionName(bq12.top_gap)} (+${bq12.top_gap.gap} pp)`
+        : (!bq12.searches || !bq12.restaurants ? 'Datos insuficientes' : 'Sin brechas positivas');
+      document.getElementById('bq12-note').textContent =
+        `Eventos excluidos por falta de applyId: ${bq12.skipped_events}. Una búsqueda puede incluir varias preferencias.`;
+      for (const kind of ['category', 'dietary']) {
+        const rows = bq12.rows.filter(row => row.type === kind);
+        draw(`chart-bq12-${kind}`, 'bar', rows.map(optionName), [
+          { label: 'Demanda', data: rows.map(row => row.demand_pct), backgroundColor: BLUE },
+          { label: 'Cobertura', data: rows.map(row => row.supply_pct), backgroundColor: ORANGE },
+        ], { indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100, ticks: { callback: value => value + '%' } } } });
+      }
+    } else {
+      document.getElementById('bq12-note').textContent = 'BQ12 no está disponible en esta versión del servidor.';
+    }
 
     const bq13 = data.bq13_juanjo;
     const methods = Object.keys(bq13.searched);

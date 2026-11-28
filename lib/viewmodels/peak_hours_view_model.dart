@@ -50,10 +50,10 @@ class PeakHoursViewModel extends ChangeNotifier {
   int get currentHour => _now().hour;
   HourSlot? get bestSlot => _peakHours?.bestFrom(currentHour);
 
-  Future<void> load() async {
+  Future<void> load({bool refresh = false}) async {
     if (_isLoading) return;
 
-    final cached = _repository.cached(restaurant.id);
+    final cached = refresh ? null : _repository.cached(restaurant.id);
     if (cached != null) {
       _peakHours = cached;
       _savedAt = null;
@@ -84,7 +84,14 @@ class PeakHoursViewModel extends ChangeNotifier {
 
   void _onConnectivityChanged(List<ConnectivityResult> results) {
     final online = results.any((result) => result != ConnectivityResult.none);
-    if (online && _isOffline) unawaited(load());
+    if (!online) {
+      if (!_isOffline) {
+        _isOffline = true;
+        _notify();
+      }
+      return;
+    }
+    if (_isOffline) unawaited(load(refresh: true));
   }
 
   void _notify() {
