@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_filters.dart';
+import 'package:uniandes_food/navigation/app_navigation.dart';
 import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
 import 'package:uniandes_food/screens/restaurant/compare_restaurants_screen.dart';
 import 'package:uniandes_food/utils/currency.dart';
@@ -45,12 +46,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void initState() {
     super.initState();
     _viewModel = ExploreViewModel(auth: widget.authViewModel);
+    AppNavigation.filtersRequest.addListener(_showFilters);
   }
 
   @override
   void dispose() {
+    AppNavigation.filtersRequest.removeListener(_showFilters);
     _viewModel.dispose();
     super.dispose();
+  }
+
+  /// The filter button on the map opens Explore on the filter menu, also
+  /// when Explore was showing the results of a previous search.
+  void _showFilters() {
+    if (_viewModel.showingResults) _viewModel.editFilters();
   }
 
   void _openRestaurant(Restaurant restaurant) {
