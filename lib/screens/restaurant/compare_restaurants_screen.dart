@@ -5,10 +5,7 @@ import 'package:uniandes_food/viewmodels/explore_view_model.dart';
 import 'package:uniandes_food/utils/currency.dart';
 
 class CompareRestaurantsScreen extends StatefulWidget {
-  const CompareRestaurantsScreen({
-    super.key,
-    required this.exploreViewModel,
-  });
+  const CompareRestaurantsScreen({super.key, required this.exploreViewModel});
 
   final ExploreViewModel exploreViewModel;
 
@@ -17,8 +14,7 @@ class CompareRestaurantsScreen extends StatefulWidget {
       _CompareRestaurantsScreenState();
 }
 
-class _CompareRestaurantsScreenState
-    extends State<CompareRestaurantsScreen> {
+class _CompareRestaurantsScreenState extends State<CompareRestaurantsScreen> {
   final _viewModel = ComparisonViewModel();
 
   static const _orange = Color(0xFFFFAB00);
@@ -28,6 +24,7 @@ class _CompareRestaurantsScreenState
   @override
   void initState() {
     super.initState();
+    _updateRestaurants();
     widget.exploreViewModel.addListener(_updateRestaurants);
     _viewModel.restoreSelection();
   }
@@ -46,6 +43,12 @@ class _CompareRestaurantsScreenState
     super.dispose();
   }
 
+  String _ranking(Map<String, int>? ranks, String id) {
+    final rank = ranks?[id];
+
+    return rank == null ? 'Not available' : '#$rank';
+  }
+
   String _price(Restaurant restaurant) {
     final price = restaurant.averagePriceCop;
     return price == null ? 'Not available' : formatCop(price);
@@ -58,9 +61,7 @@ class _CompareRestaurantsScreenState
       if (restaurant.isLactoseFree) 'Lactose-free',
     ];
 
-    return options.isEmpty
-        ? 'Not specified'
-        : options.join('\n');
+    return options.isEmpty ? 'Not specified' : options.join('\n');
   }
 
   @override
@@ -76,6 +77,7 @@ class _CompareRestaurantsScreenState
         listenable: _viewModel,
         builder: (context, _) {
           final comparison = _viewModel.comparison;
+          final insights = _viewModel.insights;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -107,6 +109,7 @@ class _CompareRestaurantsScreenState
                 ),
                 const SizedBox(height: 16),
               ],
+
               const Text(
                 'Compare your options',
                 style: TextStyle(
@@ -115,11 +118,14 @@ class _CompareRestaurantsScreenState
                   color: _textColor,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Text(
                 'Select two restaurants to find the best option for you.',
                 style: TextStyle(color: Colors.grey),
               ),
+
               const SizedBox(height: 24),
 
               _restaurantSelector(
@@ -168,18 +174,15 @@ class _CompareRestaurantsScreenState
                 Row(
                   children: [
                     Expanded(
-                      child: _restaurantHeader(
-                        comparison.firstRestaurant,
-                      ),
+                      child: _restaurantHeader(comparison.firstRestaurant),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _restaurantHeader(
-                        comparison.secondRestaurant,
-                      ),
+                      child: _restaurantHeader(comparison.secondRestaurant),
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 16),
 
                 _comparisonRow(
@@ -192,19 +195,15 @@ class _CompareRestaurantsScreenState
                 _comparisonRow(
                   icon: Icons.directions_walk,
                   label: 'Walking time',
-                  first:
-                      '${comparison.firstRestaurant.walkingMinutes} min',
-                  second:
-                      '${comparison.secondRestaurant.walkingMinutes} min',
+                  first: '${comparison.firstRestaurant.walkingMinutes} min',
+                  second: '${comparison.secondRestaurant.walkingMinutes} min',
                 ),
 
                 _comparisonRow(
                   icon: Icons.schedule,
                   label: 'Waiting time',
-                  first:
-                      comparison.firstRestaurant.waitTime.shortLabel,
-                  second:
-                      comparison.secondRestaurant.waitTime.shortLabel,
+                  first: comparison.firstRestaurant.waitTime.shortLabel,
+                  second: comparison.secondRestaurant.waitTime.shortLabel,
                 ),
 
                 _comparisonRow(
@@ -212,24 +211,86 @@ class _CompareRestaurantsScreenState
                   label: 'Rating',
                   first: comparison.firstRestaurant.reviewCount == 0
                       ? 'No reviews'
-                      : comparison.firstRestaurant.rating
-                          .toStringAsFixed(1),
+                      : comparison.firstRestaurant.rating.toStringAsFixed(1),
                   second: comparison.secondRestaurant.reviewCount == 0
                       ? 'No reviews'
-                      : comparison.secondRestaurant.rating
-                          .toStringAsFixed(1),
+                      : comparison.secondRestaurant.rating.toStringAsFixed(1),
                 ),
 
                 _comparisonRow(
                   icon: Icons.eco_outlined,
                   label: 'Dietary options',
-                  first: _dietaryOptions(
-                    comparison.firstRestaurant,
-                  ),
-                  second: _dietaryOptions(
-                    comparison.secondRestaurant,
+                  first: _dietaryOptions(comparison.firstRestaurant),
+                  second: _dietaryOptions(comparison.secondRestaurant),
+                ),
+
+                const SizedBox(height: 16),
+
+                const Text(
+                  'Comparison Insights',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: _textColor,
                   ),
                 ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Rankings among available restaurants in Explore.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+
+                const SizedBox(height: 12),
+
+                if (_viewModel.isCalculatingInsights)
+                  const Center(child: CircularProgressIndicator(color: _orange))
+                else if (insights != null) ...[
+                  _comparisonRow(
+                    icon: Icons.payments_outlined,
+                    label: 'Price ranking',
+                    first: _ranking(
+                      insights.priceRanks,
+                      comparison.firstRestaurant.id,
+                    ),
+                    second: _ranking(
+                      insights.priceRanks,
+                      comparison.secondRestaurant.id,
+                    ),
+                  ),
+
+                  _comparisonRow(
+                    icon: Icons.directions_walk,
+                    label: 'Walking time ranking',
+                    first: _ranking(
+                      insights.walkingRanks,
+                      comparison.firstRestaurant.id,
+                    ),
+                    second: _ranking(
+                      insights.walkingRanks,
+                      comparison.secondRestaurant.id,
+                    ),
+                  ),
+
+                  _comparisonRow(
+                    icon: Icons.star_outline,
+                    label: 'Rating ranking',
+                    first: _ranking(
+                      insights.ratingRanks,
+                      comparison.firstRestaurant.id,
+                    ),
+                    second: _ranking(
+                      insights.ratingRanks,
+                      comparison.secondRestaurant.id,
+                    ),
+                  ),
+                ] else
+                  const Text(
+                    'Comparison insights are currently unavailable.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
 
                 const SizedBox(height: 16),
 
@@ -275,10 +336,7 @@ class _CompareRestaurantsScreenState
           items: available.map((restaurant) {
             return DropdownMenuItem<String>(
               value: restaurant.id,
-              child: Text(
-                restaurant.name,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: Text(restaurant.name, overflow: TextOverflow.ellipsis),
             );
           }).toList(),
           onChanged: (id) {
@@ -307,29 +365,23 @@ class _CompareRestaurantsScreenState
           CircleAvatar(
             radius: 28,
             backgroundColor: const Color(0xFFFFF0D0),
-            child: Icon(
-              restaurant.foodIcon,
-              color: _textColor,
-              size: 28,
-            ),
+            child: Icon(restaurant.foodIcon, color: _textColor, size: 28),
           ),
+
           const SizedBox(height: 12),
+
           Text(
             restaurant.name,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
+
           const SizedBox(height: 4),
+
           Text(
             restaurant.category,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),
@@ -355,7 +407,9 @@ class _CompareRestaurantsScreenState
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: _orange, size: 20),
+
               const SizedBox(width: 8),
+
               Text(
                 label,
                 style: const TextStyle(
@@ -365,26 +419,16 @@ class _CompareRestaurantsScreenState
               ),
             ],
           ),
+
           const SizedBox(height: 12),
+
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  first,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              Container(
-                width: 1,
-                height: 24,
-                color: const Color(0xFFE5E8EC),
-              ),
-              Expanded(
-                child: Text(
-                  second,
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              Expanded(child: Text(first, textAlign: TextAlign.center)),
+
+              Container(width: 1, height: 24, color: const Color(0xFFE5E8EC)),
+
+              Expanded(child: Text(second, textAlign: TextAlign.center)),
             ],
           ),
         ],

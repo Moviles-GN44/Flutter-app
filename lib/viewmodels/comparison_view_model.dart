@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uniandes_food/models/restaurant.dart';
 import 'package:uniandes_food/models/restaurant_comparison.dart';
 import 'package:uniandes_food/services/comparison_preferences_service.dart';
+import 'package:uniandes_food/services/comparison_insights_service.dart';
 
 class ComparisonViewModel extends ChangeNotifier {
   ComparisonViewModel({ComparisonPreferencesService? preferencesService})
@@ -17,6 +18,17 @@ class ComparisonViewModel extends ChangeNotifier {
 
   bool _isFromCache = false;
   bool _disposed = false;
+  final _insightsService = ComparisonInsightsService();
+
+  ComparisonInsights? _insights;
+
+  bool _isCalculatingInsights = false;
+
+  int _insightsRequestId = 0;
+
+  ComparisonInsights? get insights => _insights;
+
+  bool get isCalculatingInsights => _isCalculatingInsights;
   bool _selectionModified = false;
 
   String? _pendingFirstId;
@@ -115,7 +127,41 @@ class ComparisonViewModel extends ChangeNotifier {
 
     _restoreAvailableRestaurants();
 
+    calculateInsights();
+  }
+
+  Future<void> calculateInsights() async {
+    if (_disposed) return;
+
+    final requestId = ++_insightsRequestId;
+
+    _insights = null;
+
+    if (_restaurants.length < 2) {
+      _isCalculatingInsights = false;
+      notifyListeners();
+      return;
+    }
+
+    _isCalculatingInsights = true;
     notifyListeners();
+
+    try {
+      final result = await _insightsService.calculate(_restaurants);
+
+      if (_disposed || requestId != _insightsRequestId) {
+        return;
+      }
+
+      _insights = result;
+    } catch (error) {
+      debugPrint('Could not calculate comparison insights: $error');
+    } finally {
+      if (!_disposed && requestId == _insightsRequestId) {
+        _isCalculatingInsights = false;
+        notifyListeners();
+      }
+    }
   }
 
   Restaurant? _findRestaurant(String? id) {
@@ -180,6 +226,7 @@ class ComparisonViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _insightsRequestId++;
     super.dispose();
   }
 }
