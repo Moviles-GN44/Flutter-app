@@ -13,6 +13,7 @@ import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/scan_qr_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 class ScanQrScreen extends StatefulWidget {
   const ScanQrScreen({super.key});
@@ -145,6 +146,7 @@ class _ScanQrScreenState extends State<ScanQrScreen>
           bottom: false,
           child: Column(
             children: [
+              const OfflineBanner(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
                 child: Row(

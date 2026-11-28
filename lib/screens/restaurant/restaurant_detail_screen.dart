@@ -13,6 +13,7 @@ import 'package:uniandes_food/widgets/food_image_placeholder.dart';
 import 'package:uniandes_food/widgets/status_tag.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
 import 'package:uniandes_food/viewmodels/restaurant_reviews_view_model.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 enum _DetailTab { menu, info, reviews }
 
@@ -114,6 +115,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
         bottom: false,
         child: Column(
           children: [
+            const OfflineBanner(padding: EdgeInsets.fromLTRB(16, 8, 16, 8)),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 16),
