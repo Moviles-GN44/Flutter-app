@@ -4,6 +4,7 @@ import 'package:uniandes_food/data/campus.dart';
 import 'package:uniandes_food/models/app_user.dart';
 import 'package:uniandes_food/screens/profile/my_reviews_screen.dart';
 import 'package:uniandes_food/viewmodels/profile_view_model.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -166,6 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           children: [
             const _ProfileHeader(),
+            const OfflineBanner(padding: EdgeInsets.fromLTRB(16, 0, 16, 8)),
             Expanded(
               child: Container(
                 width: double.infinity,

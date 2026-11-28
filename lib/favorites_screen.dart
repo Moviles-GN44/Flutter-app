@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/data/sample_restaurants.dart';
 import 'package:uniandes_food/screens/restaurant/restaurant_detail_screen.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key, this.showBottomNav = true});
@@ -26,6 +27,7 @@ class FavoritesScreen extends StatelessWidget {
         child: Column(
           children: [
             const _FavoritesHeader(),
+            const OfflineBanner(padding: EdgeInsets.fromLTRB(16, 0, 16, 8)),
 
             Expanded(
               child: SingleChildScrollView(

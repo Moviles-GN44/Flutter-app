@@ -4,6 +4,7 @@ import 'package:uniandes_food/screens/auth/auth_form_fields.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, required this.viewModel});
@@ -57,6 +58,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(8, 8, 24, 24),
                 children: [
+                  const OfflineBanner(
+                    padding: EdgeInsets.fromLTRB(16, 0, 0, 8),
+                  ),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: IconButton(

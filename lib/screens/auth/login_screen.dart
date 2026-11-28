@@ -5,6 +5,7 @@ import 'package:uniandes_food/screens/auth/register_screen.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
 import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/auth_view_model.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.viewModel});
@@ -70,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(24, _isPushed ? 8 : 40, 24, 24),
                 children: [
+                  const OfflineBanner(padding: EdgeInsets.only(bottom: 16)),
                   if (_isPushed)
                     Align(
                       alignment: Alignment.centerLeft,

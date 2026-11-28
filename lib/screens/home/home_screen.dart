@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:uniandes_food/navigation/app_navigation.dart';
 import 'package:uniandes_food/screens/home/campus_map.dart';
 import 'package:uniandes_food/screens/home/restaurant_preview_sheet.dart';
 import 'package:uniandes_food/theme/app_colors.dart';
@@ -181,7 +182,7 @@ class _SearchRow extends StatelessWidget {
           height: 52,
           decoration: _floatingDecoration,
           child: IconButton(
-            onPressed: () {},
+            onPressed: () => AppNavigation.openFilters(context),
             tooltip: 'Filters',
             icon: const Icon(
               Icons.tune_rounded,

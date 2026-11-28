@@ -10,6 +10,7 @@ import 'package:uniandes_food/theme/app_text.dart';
 import 'package:uniandes_food/viewmodels/write_review_view_model.dart';
 import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/dashed_border_painter.dart';
+import 'package:uniandes_food/widgets/offline_banner.dart';
 import 'package:uniandes_food/widgets/status_tag.dart';
 import 'package:uniandes_food/widgets/wait_time_style.dart';
 
@@ -155,6 +156,7 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         bottom: false,
         child: ListView(
           children: [
+            const OfflineBanner(padding: EdgeInsets.fromLTRB(16, 8, 16, 8)),
             _Header(
               restaurant: widget.restaurant,
               verified: widget.verified,
