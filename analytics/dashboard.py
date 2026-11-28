@@ -53,6 +53,7 @@ LOAD_BUCKETS = [(1, "< 1s"), (2, "1-2s"), (5, "2-5s"), (None, "> 5s")]
 HOURS = range(7, 20)
 WAIT_TIMES = ["under5", "fiveTo15", "over15"]
 BOGOTA = timezone(timedelta(hours=-5))
+PAYMENT_METHODS = ["Cash", "Cards", "Nequi"]
 MIN_REPORTS = 3
 SLOW_SHARE = 50
 
@@ -117,8 +118,15 @@ def fetch_reviews():
     })
 
 
+def fetch_restaurants():
+    return run_query({
+        "from": [{"collectionId": "restaurants"}],
+        "select": {"fields": [{"fieldPath": "name"}, {"fieldPath": "paymentMethods"}]},
+    })
+
+
 def fetch_data():
-    return fetch_events(), fetch_reviews()
+    return fetch_events(), fetch_reviews(), fetch_restaurants()
 
 
 def params(event):
@@ -352,7 +360,43 @@ def bq11_felipe(events, reviews):
     }
 
 
-def calculate_metrics(events, reviews):
+def bq13_juanjo(events, restaurants):
+    # Demand: one search per applyId (every active filter of a search shares it).
+    searches = {}
+    for event in named(events, "filter_applied"):
+        p = params(event)
+        if p.get("filterType") != "payment" or p.get("value") not in PAYMENT_METHODS:
+            continue
+        key = p.get("applyId") or id(event)
+        searches.setdefault(key, set()).add(p["value"])
+
+    accepted = [
+        {m for m in (r.get("paymentMethods") or []) if m in PAYMENT_METHODS}
+        for r in restaurants
+    ]
+    # For each method: searches that asked for it vs restaurants that accept it.
+    searched = {m: sum(m in wanted for wanted in searches.values()) for m in PAYMENT_METHODS}
+    offered = {m: sum(m in a for a in accepted) for m in PAYMENT_METHODS}
+    # Same rule as the Explore filter: a search is served when at least one
+    # restaurant accepts at least one of the methods asked for.
+    served = sum(any(wanted & a for a in accepted) for wanted in searches.values())
+    # Most demanded method relative to how many restaurants accept it.
+    ranked = sorted(
+        (m for m in PAYMENT_METHODS if searched[m]),
+        key=lambda m: searched[m] / offered[m] if offered[m] else float("inf"),
+        reverse=True,
+    )
+    return {
+        "searches": len(searches),
+        "restaurants": len(accepted),
+        "searched": searched,
+        "offered": offered,
+        "top": ranked[0] if ranked else None,
+        "served_pct": percent(served, len(searches)),
+    }
+
+
+def calculate_metrics(events, reviews, restaurants=()):
     flutter = sum(e.get("platform") == "Flutter" for e in events)
     latest = sorted(events, key=lambda e: number(e.get("timestamp")) or 0, reverse=True)
     return {
@@ -370,6 +414,7 @@ def calculate_metrics(events, reviews):
         "bq7_catalina": bq7_catalina(events),
         "bq9_juanjo": bq9_juanjo(events),
         "bq11_felipe": bq11_felipe(events, reviews),
+        "bq13_juanjo": bq13_juanjo(events, list(restaurants)),
         "raw_events": [
             {k: e.get(k) for k in ("timestamp", "eventName", "platform", "params")}
             for e in latest[:30]
@@ -410,8 +455,15 @@ def demo_events():
         )
     for _ in range(70):
         filter_type = random.choices(FILTER_TYPES, weights=[4, 3, 3, 2, 1])[0]
-        value = random.choice(RESTRICTIONS) if filter_type == "dietary" else "any"
-        events.append(event("filter_applied", "Flutter", {"filterType": filter_type, "value": value}))
+        if filter_type == "dietary":
+            value = random.choice(RESTRICTIONS)
+        elif filter_type == "payment":
+            value = random.choices(PAYMENT_METHODS, weights=[1, 3, 5])[0]
+        else:
+            value = "any"
+        events.append(
+            event("filter_applied", "Flutter", {"filterType": filter_type, "value": value, "applyId": str(random.random())})
+        )
     for _ in range(90):
         feature = random.choices(FEATURES, weights=[8, 5, 1, 2, 3])[0]
         events.append(event("feature_opened", "Flutter", {"feature": feature, "userId": f"user-{random.randint(1, 20)}"}))
@@ -470,6 +522,13 @@ def demo_reviews():
     return reviews
 
 
+def demo_restaurants():
+    return [
+        {"name": name, "paymentMethods": random.sample(PAYMENT_METHODS, random.randint(1, 3))}
+        for name in RESTAURANT_NAMES.values()
+    ]
+
+
 def make_handler(load):
     page = (HERE / "dashboard.html").read_bytes()
 
@@ -506,7 +565,7 @@ def main():
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    sample = (demo_events(), demo_reviews()) if args.demo else None
+    sample = (demo_events(), demo_reviews(), demo_restaurants()) if args.demo else None
     load = (lambda: sample) if args.demo else fetch_data
 
     url = f"http://localhost:{args.port}"
