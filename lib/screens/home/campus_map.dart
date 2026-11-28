@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -194,7 +195,16 @@ class _CampusMapState extends State<CampusMap> with WidgetsBindingObserver {
         : _tilesFailed
         ? 'Map background unavailable'
         : null;
-    final nearby = _viewModel.nearbyRestaurants;
+    // Profiled in DevTools (Performance > Timeline Events) for the Sprint 4
+    // micro-optimization: what the map reads from the view model each build.
+    final (nearby, closestRestaurant, building) = Timeline.timeSync(
+      'CampusMap.readNearby',
+      () => (
+        _viewModel.nearbyRestaurants,
+        _viewModel.closestRestaurant,
+        _viewModel.currentBuilding,
+      ),
+    );
     final hasNearby = nearby.isNotEmpty;
 
     //flutter map es un widget que muestra mapas interactivos, viene de flutter_map
@@ -279,9 +289,9 @@ class _CampusMapState extends State<CampusMap> with WidgetsBindingObserver {
         else ...[
           if (offlineNotice != null)
             _MapStatus(message: offlineNotice, offline: !_isOnline),
-          if (_viewModel.closestRestaurant case final closest?)
+          if (closestRestaurant case final closest?)
             _NearbyBanner(
-              building: _viewModel.currentBuilding,
+              building: building,
               nearby: nearby,
               closest: closest,
               // Leaves room for the offline notice above it.
