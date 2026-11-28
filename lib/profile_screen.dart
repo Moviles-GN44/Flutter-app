@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:uniandes_food/data/campus.dart';
 import 'package:uniandes_food/models/app_user.dart';
+import 'package:uniandes_food/screens/profile/my_reviews_screen.dart';
 import 'package:uniandes_food/viewmodels/profile_view_model.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -130,6 +131,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     widget.onChangeBuilding?.call(choice);
   }
 
+  void _openMyReviews() {
+    final user = widget.user;
+    if (user == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => MyReviewsScreen(uid: user.uid)),
+    );
+  }
+
   @override
   void dispose() {
     _viewModel?.dispose();
@@ -221,6 +230,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
 
                         if (widget.buildingIsSyncing) const _SyncPendingNote(),
+
+                        _ProfileMenuItem(
+                          icon: Icons.rate_review_outlined,
+                          title: 'My reviews',
+                          value: reviewCount == null ? null : '$reviewCount',
+                          onTap: widget.user == null ? null : _openMyReviews,
+                        ),
 
                         const SizedBox(height: 20),
 
