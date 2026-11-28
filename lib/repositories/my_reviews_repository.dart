@@ -12,19 +12,28 @@ typedef MyReviewsSnapshot = ({
 
 /// Reads the signed-in student's reviews for the My Reviews view.
 ///
-/// Local storage: restaurant names and the last synced list are kept on the
-/// phone in SQLite (see [MyReviewsStore]).
+/// - Caching: restaurant names live in memory for [nameTtl].
+/// - Local storage: restaurant names and the last synced list are kept on the
+///   phone in SQLite (see [MyReviewsStore]).
 class MyReviewsRepository {
-  MyReviewsRepository({FirebaseFirestore? firestore, MyReviewsStore? store})
-    : _injected = firestore,
-      _store = store ?? MyReviewsStore.instance;
+  MyReviewsRepository({
+    FirebaseFirestore? firestore,
+    MyReviewsStore? store,
+    DateTime Function()? now,
+  }) : _injected = firestore,
+       _store = store ?? MyReviewsStore.instance,
+       _now = now ?? DateTime.now;
 
   static final instance = MyReviewsRepository();
 
+  static const nameTtl = Duration(minutes: 30);
   static const _serverTimeout = Duration(seconds: 6);
 
   final FirebaseFirestore? _injected;
   final MyReviewsStore _store;
+  final DateTime Function() _now;
+
+  final Map<String, ({String name, DateTime savedAt})> _names = {};
 
   FirebaseFirestore get _firestore => _injected ?? FirebaseFirestore.instance;
 
@@ -44,11 +53,26 @@ class MyReviewsRepository {
         );
   }
 
-  /// Names for [ids]: the phone first, then Firestore.
+  /// Names for [ids]: memory first, then the phone, then Firestore.
   Future<Map<String, String>> restaurantNames(Set<String> ids) async {
-    if (ids.isEmpty) return {};
-    final names = <String, String>{...await _store.names(ids)};
-    final missing = ids.difference(names.keys.toSet());
+    final names = <String, String>{};
+    final now = _now();
+
+    for (final id in ids) {
+      final cached = _names[id];
+      if (cached != null && now.difference(cached.savedAt) < nameTtl) {
+        names[id] = cached.name;
+      }
+    }
+
+    var missing = ids.difference(names.keys.toSet());
+    if (missing.isEmpty) return names;
+
+    final saved = await _store.names(missing);
+    names.addAll(saved);
+    _remember(saved);
+    missing = missing.difference(saved.keys.toSet());
+    if (missing.isEmpty) return names;
 
     final found = <String, String>{};
     for (final id in missing) {
@@ -56,6 +80,7 @@ class MyReviewsRepository {
       if (entry != null) found[entry.id] = entry.name;
     }
     names.addAll(found);
+    _remember(found);
     unawaited(_store.saveNames(found));
     return names;
   }
@@ -66,6 +91,15 @@ class MyReviewsRepository {
     Map<String, String> names,
   ) async {
     return MyReviewsSummary.build((rows: rows, names: names));
+  }
+
+  void clearNameCache() => _names.clear();
+
+  void _remember(Map<String, String> names) {
+    final now = _now();
+    for (final entry in names.entries) {
+      _names[entry.key] = (name: entry.value, savedAt: now);
+    }
   }
 
   Future<({String id, String name})?> _fetchName(String id) async {
