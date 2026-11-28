@@ -21,6 +21,7 @@ KOTLIN_EVENTS = [
     "bq_individual_search",
     "karin_bq_individual_search",
     "samuel_bq_building_filter",
+    "samuel_bq1_screen_load",
 ]
 FLUTTER_EVENTS = [
     "map_load_completed",
@@ -426,12 +427,45 @@ def bq12_catalina(events, restaurants):
     }
 
 
+def bq1_samuel(events):
+    screen_loads = [e for e in events if e.get("eventName") == "samuel_bq1_screen_load"]
+    by_screen = {}
+    cached = []
+    live = []
+    for e in screen_loads:
+        params = e.get("params") or {}
+        screen = params.get("screen_name") or "Unknown"
+        ms = number(params.get("load_time_ms"))
+        if ms is None or ms <= 0:
+            continue
+        by_screen.setdefault(screen, []).append(ms)
+        if params.get("from_cache"):
+            cached.append(ms)
+        else:
+            live.append(ms)
+    avg_by_screen = {
+        screen: round(sum(vals) / len(vals), 1)
+        for screen, vals in by_screen.items()
+    }
+    ordered = dict(sorted(avg_by_screen.items(), key=lambda kv: kv[1], reverse=True))
+    slowest = next(iter(ordered), None)
+    return {
+        "screens": ordered,
+        "slowest": slowest,
+        "slowest_ms": ordered[slowest] if slowest else None,
+        "avg_cache": round(sum(cached) / len(cached), 1) if cached else None,
+        "avg_live": round(sum(live) / len(live), 1) if live else None,
+        "samples": sum(len(v) for v in by_screen.values()),
+    }
+
+
 def calculate_metrics(events, reviews, restaurants=None):
     flutter = sum(e.get("platform") == "Flutter" for e in events)
     latest = sorted(events, key=lambda e: number(e.get("timestamp")) or 0, reverse=True)
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "summary": {"total": len(events), "flutter": flutter, "kotlin": len(events) - flutter},
+        "bq1_samuel": bq1_samuel(events),
         "bq2_felipe": bq2_felipe(events),
         "bq8_karin": bq8_karin(events),
         "bq10_samuel": bq10_samuel(events),
