@@ -181,6 +181,15 @@
   </div>
 
   <div class="bq">
+    <h2>BQ13 · Juan José · Flutter</h2>
+    <p class="question">¿Qué métodos de pago aceptan realmente los restaurantes del campus y qué tan lejos está eso de los métodos que los estudiantes prefieren usar?</p>
+    <p class="result">Método con más búsquedas por restaurante: <b id="bq13-top">N/A</b> · Búsquedas con filtro de pago: <b id="bq13-searches">0</b> · Restaurantes: <b id="bq13-restaurants">0</b> · Búsquedas que algún restaurante puede atender: <b id="bq13-served">N/A</b></p>
+    <div class="charts">
+      <div class="chart"><h3>Búsquedas que piden el método vs restaurantes que lo aceptan</h3><div><canvas id="chart-bq13-compare"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="bq">
     <h2>Reseñas por QR · Kotlin</h2>
     <p class="question">Calificaciones y reseñas completadas después de escanear el QR.</p>
     <p class="result">Calificación promedio: <b id="qr-rating">N/A</b></p>
@@ -363,6 +372,17 @@
     } else {
       document.getElementById('bq12-note').textContent = 'BQ12 no está disponible en esta versión del servidor.';
     }
+
+    const bq13 = data.bq13_juanjo;
+    const methods = Object.keys(bq13.searched);
+    document.getElementById('bq13-top').textContent = bq13.top ? `${bq13.top} (${bq13.searched[bq13.top]} búsquedas · ${bq13.offered[bq13.top]} restaurantes)` : 'N/A';
+    show('bq13-searches', bq13.searches);
+    show('bq13-restaurants', bq13.restaurants);
+    show('bq13-served', bq13.served_pct, '%');
+    draw('chart-bq13-compare', 'bar', methods, [
+      { label: 'Búsquedas', data: methods.map(m => bq13.searched[m]), backgroundColor: BLUE },
+      { label: 'Restaurantes', data: methods.map(m => bq13.offered[m]), backgroundColor: ORANGE },
+    ]);
 
     const qr = data.qr_reviews;
     show('qr-rating', qr.avg_rating, ' / 5');

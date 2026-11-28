@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
@@ -25,6 +26,7 @@ class CampusMapViewModel extends ChangeNotifier {
       onError: _onError,
     );
     _location.addListener(_onLocationChanged);
+    _updateDerived();
   }
 
   final CampusRestaurantsRepository _repository;
@@ -78,7 +80,44 @@ class CampusMapViewModel extends ChangeNotifier {
 
   /// The campus building the student is in or next to, or null when they are
   /// between buildings. Follows the GPS as they walk.
-  String? get currentBuilding {
+  String? get currentBuilding => _currentBuilding;
+
+  /// Restaurants within [nearbyMinutes] of the student, closest first.
+  List<Restaurant> get nearbyRestaurants => _nearby;
+
+  /// The restaurant closest to the student, nearby or not.
+  Restaurant? get closestRestaurant => _closest;
+
+  bool isNearby(Restaurant restaurant) =>
+      restaurant.walkingMinutes <= nearbyMinutes;
+
+  // Micro-optimization (Sprint 4): these three values used to be getters that
+  // filtered, sorted and measured again on every read, and the map reads them
+  // on every rebuild (selecting a pin, connectivity changes, tile errors…).
+  // Now they are computed once, only when the restaurants or the student's
+  // location change, and the getters just return them.
+  List<Restaurant> _nearby = const [];
+  Restaurant? _closest;
+  String? _currentBuilding;
+
+  void _updateDerived() {
+    Timeline.timeSync('CampusMapViewModel.updateDerived', () {
+      Restaurant? closest;
+      final nearby = <Restaurant>[];
+      for (final r in _restaurants) {
+        if (closest == null || r.distanceMeters < closest.distanceMeters) {
+          closest = r;
+        }
+        if (r.walkingMinutes <= nearbyMinutes) nearby.add(r);
+      }
+      nearby.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+      _nearby = nearby;
+      _closest = closest;
+      _currentBuilding = _findCurrentBuilding();
+    });
+  }
+
+  String? _findCurrentBuilding() {
     if (!isUsingGps) return locationLabel;
 
     String? closest;
@@ -93,35 +132,18 @@ class CampusMapViewModel extends ChangeNotifier {
     return closestMeters <= _buildingRadiusMeters ? closest : null;
   }
 
-  /// Restaurants within [nearbyMinutes] of the student, closest first.
-  List<Restaurant> get nearbyRestaurants {
-    return [
-      for (final r in _restaurants)
-        if (r.walkingMinutes <= nearbyMinutes) r,
-    ]..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
-  }
-
-  /// The restaurant closest to the student, nearby or not.
-  Restaurant? get closestRestaurant {
-    if (_restaurants.isEmpty) return null;
-    return _restaurants.reduce(
-      (a, b) => a.distanceMeters <= b.distanceMeters ? a : b,
-    );
-  }
-
-  bool isNearby(Restaurant restaurant) =>
-      restaurant.walkingMinutes <= nearbyMinutes;
-
   void _onLocationChanged() {
     _restaurants = [
       for (final r in _firestoreRestaurants) _location.measure(r),
     ];
+    _updateDerived();
     notifyListeners();
   }
 
   void _onRestaurants(RestaurantsSnapshot snapshot) {
     _firestoreRestaurants = snapshot.restaurants;
     _restaurants = [for (final r in snapshot.restaurants) _location.measure(r)];
+    _updateDerived();
     _isFromCache = snapshot.isFromCache;
     _hasReceivedSnapshot = true;
     _isLoading = false;

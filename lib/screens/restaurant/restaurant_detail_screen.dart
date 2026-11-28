@@ -12,6 +12,7 @@ import 'package:uniandes_food/widgets/app_bottom_nav.dart';
 import 'package:uniandes_food/widgets/food_image_placeholder.dart';
 import 'package:uniandes_food/widgets/status_tag.dart';
 import 'package:uniandes_food/services/telemetry_service.dart';
+import 'package:uniandes_food/viewmodels/restaurant_reviews_view_model.dart';
 
 enum _DetailTab { menu, info, reviews }
 
@@ -30,12 +31,23 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
 
   final TelemetryService _telemetryService = TelemetryService();
 
+  /// Keeps the rating, the review count and the comments up to date.
+  late final RestaurantReviewsViewModel _reviews = RestaurantReviewsViewModel(
+    restaurant: widget.restaurant,
+  );
+
   Restaurant get _restaurant => widget.restaurant;
 
   @override
   void initState() {
     super.initState();
     _trackMenuCriteria();
+  }
+
+  @override
+  void dispose() {
+    _reviews.dispose();
+    super.dispose();
   }
 
   void _trackMenuCriteria() {
@@ -115,11 +127,16 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       onShare: _share,
                       onToggleFavorite: _toggleFavorite,
                     ),
-                    _SummaryCard(
-                      restaurant: _restaurant,
-                      tab: _tab,
-                      onTabChanged: (tab) => setState(() => _tab = tab),
-                      onBestTime: _openBestTime,
+                    ListenableBuilder(
+                      listenable: _reviews,
+                      builder: (context, _) => _SummaryCard(
+                        restaurant: _restaurant,
+                        rating: _reviews.rating,
+                        reviewCount: _reviews.reviewCount,
+                        tab: _tab,
+                        onTabChanged: (tab) => setState(() => _tab = tab),
+                        onBestTime: _openBestTime,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Padding(
@@ -127,8 +144,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       child: switch (_tab) {
                         _DetailTab.menu => _MenuTab(restaurant: _restaurant),
                         _DetailTab.info => _InfoTab(restaurant: _restaurant),
-                        _DetailTab.reviews => _ReviewsTab(
-                          restaurant: _restaurant,
+                        _DetailTab.reviews => ListenableBuilder(
+                          listenable: _reviews,
+                          builder: (context, _) =>
+                              _ReviewsTab(viewModel: _reviews),
                         ),
                       },
                     ),
@@ -245,12 +264,16 @@ class _HeroButton extends StatelessWidget {
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.restaurant,
+    required this.rating,
+    required this.reviewCount,
     required this.tab,
     required this.onTabChanged,
     required this.onBestTime,
   });
 
   final Restaurant restaurant;
+  final double rating;
+  final int reviewCount;
   final _DetailTab tab;
   final ValueChanged<_DetailTab> onTabChanged;
   final VoidCallback onBestTime;
@@ -278,12 +301,9 @@ class _SummaryCard extends StatelessWidget {
             children: [
               const Icon(Icons.star_rounded, size: 18, color: AppColors.amber),
               const SizedBox(width: 4),
-              Text(
-                restaurant.rating.toStringAsFixed(1),
-                style: AppText.bodyStrong,
-              ),
+              Text(rating.toStringAsFixed(1), style: AppText.bodyStrong),
               const SizedBox(width: 12),
-              Text('${restaurant.reviewCount} reviews', style: AppText.caption),
+              Text('$reviewCount reviews', style: AppText.caption),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -604,13 +624,15 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _ReviewsTab extends StatelessWidget {
-  const _ReviewsTab({required this.restaurant});
+  const _ReviewsTab({required this.viewModel});
 
-  final Restaurant restaurant;
+  final RestaurantReviewsViewModel viewModel;
 
   @override
   Widget build(BuildContext context) {
-    final rounded = restaurant.rating.round();
+    final rating = viewModel.rating;
+    final reviews = viewModel.reviews;
+    final rounded = rating.round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,11 +651,11 @@ class _ReviewsTab extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Text(restaurant.rating.toStringAsFixed(1), style: AppText.h2),
+                  Text(rating.toStringAsFixed(1), style: AppText.h2),
                   const SizedBox(width: 8),
                   Semantics(
                     label:
-                        'Rated ${restaurant.rating.toStringAsFixed(1)} '
+                        'Rated ${rating.toStringAsFixed(1)} '
                         'out of 5',
                     excludeSemantics: true,
                     child: Row(
@@ -652,7 +674,7 @@ class _ReviewsTab extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${restaurant.reviewCount} Reviews',
+                      '${viewModel.reviewCount} Reviews',
                       textAlign: TextAlign.end,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -661,14 +683,22 @@ class _ReviewsTab extends StatelessWidget {
                   ),
                 ],
               ),
-              if (restaurant.reviews.isEmpty) ...[
+              if (viewModel.hasPendingReviews) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Reviews marked as pending will be sent when you are '
+                  'back online.',
+                  style: AppText.caption,
+                ),
+              ],
+              if (reviews.isEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
                   'No comments yet. Be the first to leave one.',
                   style: AppText.caption,
                 ),
               ],
-              for (final review in restaurant.reviews) ...[
+              for (final review in reviews) ...[
                 const SizedBox(height: 16),
                 const Divider(height: 1, color: AppColors.border),
                 const SizedBox(height: 16),
@@ -679,8 +709,20 @@ class _ReviewsTab extends StatelessWidget {
                   children: [
                     Text(review.author, style: AppText.bodyStrong),
                     if (review.verified) StatusTag.verifiedVisit(),
+                    if (review.isPending)
+                      const StatusTag(
+                        label: 'PENDING',
+                        icon: Icons.schedule_rounded,
+                        background: AppColors.waitMediumTint,
+                        foreground: AppColors.waitMediumText,
+                        semanticLabel: 'Pending, it will be sent when online',
+                      ),
                   ],
                 ),
+                if (review.rating case final stars?) ...[
+                  const SizedBox(height: 4),
+                  Text('$stars/5', style: AppText.caption),
+                ],
                 const SizedBox(height: 4),
                 Text(review.comment, style: AppText.body),
               ],

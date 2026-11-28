@@ -54,6 +54,7 @@ LOAD_BUCKETS = [(1, "< 1s"), (2, "1-2s"), (5, "2-5s"), (None, "> 5s")]
 HOURS = range(7, 20)
 WAIT_TIMES = ["under5", "fiveTo15", "over15"]
 BOGOTA = timezone(timedelta(hours=-5))
+PAYMENT_METHODS = ["Cash", "Cards", "Nequi"]
 MIN_REPORTS = 3
 SLOW_SHARE = 50
 
@@ -123,8 +124,8 @@ def fetch_restaurants():
         "from": [{"collectionId": "restaurants"}],
         "select": {"fields": [
             {"fieldPath": field} for field in (
-                "category", "isVeganFriendly", "isGlutenFreeFriendly",
-                "isLactoseFreeFriendly",
+                "name", "paymentMethods", "category", "isVeganFriendly",
+                "isGlutenFreeFriendly", "isLactoseFreeFriendly",
             )
         ]},
     })
@@ -365,6 +366,42 @@ def bq11_felipe(events, reviews):
     }
 
 
+def bq13_juanjo(events, restaurants):
+    # Demand: one search per applyId (every active filter of a search shares it).
+    searches = {}
+    for event in named(events, "filter_applied"):
+        p = params(event)
+        if p.get("filterType") != "payment" or p.get("value") not in PAYMENT_METHODS:
+            continue
+        key = p.get("applyId") or id(event)
+        searches.setdefault(key, set()).add(p["value"])
+
+    accepted = [
+        {m for m in (r.get("paymentMethods") or []) if m in PAYMENT_METHODS}
+        for r in restaurants
+    ]
+    # For each method: searches that asked for it vs restaurants that accept it.
+    searched = {m: sum(m in wanted for wanted in searches.values()) for m in PAYMENT_METHODS}
+    offered = {m: sum(m in a for a in accepted) for m in PAYMENT_METHODS}
+    # Same rule as the Explore filter: a search is served when at least one
+    # restaurant accepts at least one of the methods asked for.
+    served = sum(any(wanted & a for a in accepted) for wanted in searches.values())
+    # Most demanded method relative to how many restaurants accept it.
+    ranked = sorted(
+        (m for m in PAYMENT_METHODS if searched[m]),
+        key=lambda m: searched[m] / offered[m] if offered[m] else float("inf"),
+        reverse=True,
+    )
+    return {
+        "searches": len(searches),
+        "restaurants": len(accepted),
+        "searched": searched,
+        "offered": offered,
+        "top": ranked[0] if ranked else None,
+        "served_pct": percent(served, len(searches)),
+    }
+
+
 def bq12_catalina(events, restaurants):
     dietary_fields = {
         "vegan": "isVeganFriendly",
@@ -479,6 +516,7 @@ def calculate_metrics(events, reviews, restaurants=None):
         "bq9_juanjo": bq9_juanjo(events),
         "bq11_felipe": bq11_felipe(events, reviews),
         "bq12_catalina": bq12_catalina(events, restaurants or []),
+        "bq13_juanjo": bq13_juanjo(events, list(restaurants or [])),
         "raw_events": [
             {k: e.get(k) for k in ("timestamp", "eventName", "platform", "params")}
             for e in latest[:30]
@@ -521,6 +559,8 @@ def demo_events():
         filter_type = random.choices(FILTER_TYPES, weights=[4, 3, 3, 2, 1])[0]
         if filter_type == "dietary":
             value = random.choice(RESTRICTIONS)
+        elif filter_type == "payment":
+            value = random.choices(PAYMENT_METHODS, weights=[1, 3, 5])[0]
         elif filter_type == "category":
             value = random.choice(["Fast Food", "Executive Lunch"])
         else:
@@ -589,9 +629,9 @@ def demo_reviews():
 def demo_restaurants():
     # Synthetic catalog used only with --demo.
     return [
-        {"category": "Fast Food", "isVeganFriendly": False},
-        {"category": "Fast Food", "isGlutenFreeFriendly": True},
-        {"category": "Executive Lunch", "isLactoseFreeFriendly": True},
+        {"category": "Fast Food", "isVeganFriendly": False, "paymentMethods": ["Cash", "Cards"]},
+        {"category": "Fast Food", "isGlutenFreeFriendly": True, "paymentMethods": ["Cards", "Nequi"]},
+        {"category": "Executive Lunch", "isLactoseFreeFriendly": True, "paymentMethods": ["Cash"]},
     ]
 
 
