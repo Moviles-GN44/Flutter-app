@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:uniandes_food/models/my_review.dart';
+import 'package:uniandes_food/repositories/my_reviews_store.dart';
 
 typedef MyReviewsSnapshot = ({
   List<Map<String, Object?>> rows,
@@ -10,16 +11,24 @@ typedef MyReviewsSnapshot = ({
 });
 
 /// Reads the signed-in student's reviews for the My Reviews view.
+///
+/// Local storage: restaurant names and the last synced list are kept on the
+/// phone in SQLite (see [MyReviewsStore]).
 class MyReviewsRepository {
-  MyReviewsRepository({FirebaseFirestore? firestore}) : _injected = firestore;
+  MyReviewsRepository({FirebaseFirestore? firestore, MyReviewsStore? store})
+    : _injected = firestore,
+      _store = store ?? MyReviewsStore.instance;
 
   static final instance = MyReviewsRepository();
 
   static const _serverTimeout = Duration(seconds: 6);
 
   final FirebaseFirestore? _injected;
+  final MyReviewsStore _store;
 
   FirebaseFirestore get _firestore => _injected ?? FirebaseFirestore.instance;
+
+  MyReviewsStore get store => _store;
 
   /// The student's reviews, as plain maps.
   Stream<MyReviewsSnapshot> watch(String uid) {
@@ -35,13 +44,19 @@ class MyReviewsRepository {
         );
   }
 
-  /// Names of the restaurants with the given [ids].
+  /// Names for [ids]: the phone first, then Firestore.
   Future<Map<String, String>> restaurantNames(Set<String> ids) async {
-    final names = <String, String>{};
-    for (final id in ids) {
+    if (ids.isEmpty) return {};
+    final names = <String, String>{...await _store.names(ids)};
+    final missing = ids.difference(names.keys.toSet());
+
+    final found = <String, String>{};
+    for (final id in missing) {
       final entry = await _fetchName(id);
-      if (entry != null) names[entry.id] = entry.name;
+      if (entry != null) found[entry.id] = entry.name;
     }
+    names.addAll(found);
+    unawaited(_store.saveNames(found));
     return names;
   }
 

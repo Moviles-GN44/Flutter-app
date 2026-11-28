@@ -65,6 +65,11 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
           const SizedBox(height: 12),
           _Notice(message: notice),
         ],
+        if (_viewModel.isShowingSavedData)
+          if (_viewModel.savedAt case final savedAt?) ...[
+            const SizedBox(height: 10),
+            _SavedAt(savedAt: savedAt),
+          ],
         const SizedBox(height: 16),
         _StatsRow(summary: summary ?? MyReviewsSummary.empty),
         const SizedBox(height: 16),
@@ -324,6 +329,32 @@ class _Notice extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SavedAt extends StatelessWidget {
+  const _SavedAt({required this.savedAt});
+
+  final DateTime savedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(
+          Icons.phone_android_rounded,
+          size: 16,
+          color: AppColors.tealDark,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            'Last synced on ${_formatDate(savedAt)}',
+            style: AppText.caption.copyWith(color: AppColors.tealText),
+          ),
+        ),
+      ],
     );
   }
 }
