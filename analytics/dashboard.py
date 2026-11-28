@@ -117,8 +117,20 @@ def fetch_reviews():
     })
 
 
+def fetch_restaurants():
+    return run_query({
+        "from": [{"collectionId": "restaurants"}],
+        "select": {"fields": [
+            {"fieldPath": field} for field in (
+                "category", "isVeganFriendly", "isGlutenFreeFriendly",
+                "isLactoseFreeFriendly",
+            )
+        ]},
+    })
+
+
 def fetch_data():
-    return fetch_events(), fetch_reviews()
+    return fetch_events(), fetch_reviews(), fetch_restaurants()
 
 
 def params(event):
@@ -352,7 +364,69 @@ def bq11_felipe(events, reviews):
     }
 
 
-def calculate_metrics(events, reviews):
+def bq12_catalina(events, restaurants):
+    dietary_fields = {
+        "vegan": "isVeganFriendly",
+        "gluten_free": "isGlutenFreeFriendly",
+        "lactose_free": "isLactoseFreeFriendly",
+    }
+    searches = set()
+    requests = set()
+    skipped_events = 0
+    for event in named(events, "filter_applied"):
+        if event.get("platform") != "Flutter":
+            continue
+        data = params(event)
+        apply_id = data.get("applyId")
+        if not isinstance(apply_id, str) or not apply_id:
+            skipped_events += 1
+            continue
+        search = (data.get("userId"), apply_id)
+        searches.add(search)
+        kind = data.get("filterType")
+        value = data.get("value")
+        if not isinstance(value, str) or not value.strip():
+            continue
+        if kind == "category" or (kind == "dietary" and value in dietary_fields):
+            requests.add((search, kind, value))
+
+    demand = Counter((kind, value) for _, kind, value in requests)
+    supply = Counter()
+    for restaurant in restaurants:
+        category = restaurant.get("category")
+        if isinstance(category, str) and category.strip():
+            supply[("category", category)] += 1
+        for option, field in dietary_fields.items():
+            if restaurant.get(field) is True:
+                supply[("dietary", option)] += 1
+
+    options = set(demand) | set(supply) | {("dietary", key) for key in dietary_fields}
+    rows = []
+    for kind, value in sorted(options):
+        key = (kind, value)
+        demand_pct = demand[key] * 100 / len(searches) if searches else None
+        supply_pct = supply[key] * 100 / len(restaurants) if restaurants else None
+        gap = demand_pct - supply_pct if demand_pct is not None and supply_pct is not None else None
+        rows.append({
+            "type": kind,
+            "option": value,
+            "requests": demand[key],
+            "restaurants": supply[key],
+            "demand_pct": round(demand_pct, 1) if demand_pct is not None else None,
+            "supply_pct": round(supply_pct, 1) if supply_pct is not None else None,
+            "gap": round(gap, 1) if gap is not None else None,
+        })
+    positive = [row for row in rows if row["gap"] is not None and row["gap"] > 0]
+    return {
+        "searches": len(searches),
+        "restaurants": len(restaurants),
+        "skipped_events": skipped_events,
+        "rows": rows,
+        "top_gap": max(positive, key=lambda row: row["gap"]) if positive else None,
+    }
+
+
+def calculate_metrics(events, reviews, restaurants=None):
     flutter = sum(e.get("platform") == "Flutter" for e in events)
     latest = sorted(events, key=lambda e: number(e.get("timestamp")) or 0, reverse=True)
     return {
@@ -370,6 +444,7 @@ def calculate_metrics(events, reviews):
         "bq7_catalina": bq7_catalina(events),
         "bq9_juanjo": bq9_juanjo(events),
         "bq11_felipe": bq11_felipe(events, reviews),
+        "bq12_catalina": bq12_catalina(events, restaurants or []),
         "raw_events": [
             {k: e.get(k) for k in ("timestamp", "eventName", "platform", "params")}
             for e in latest[:30]
@@ -408,10 +483,17 @@ def demo_events():
                 {"durationMs": random.randint(2000, 30000), "usedSuggestion": random.random() < 0.35},
             )
         )
-    for _ in range(70):
+    for i in range(70):
         filter_type = random.choices(FILTER_TYPES, weights=[4, 3, 3, 2, 1])[0]
-        value = random.choice(RESTRICTIONS) if filter_type == "dietary" else "any"
-        events.append(event("filter_applied", "Flutter", {"filterType": filter_type, "value": value}))
+        if filter_type == "dietary":
+            value = random.choice(RESTRICTIONS)
+        elif filter_type == "category":
+            value = random.choice(["Fast Food", "Executive Lunch"])
+        else:
+            value = "any"
+        events.append(event("filter_applied", "Flutter", {
+            "filterType": filter_type, "value": value, "applyId": f"demo-{i}",
+        }))
     for _ in range(90):
         feature = random.choices(FEATURES, weights=[8, 5, 1, 2, 3])[0]
         events.append(event("feature_opened", "Flutter", {"feature": feature, "userId": f"user-{random.randint(1, 20)}"}))
@@ -470,6 +552,15 @@ def demo_reviews():
     return reviews
 
 
+def demo_restaurants():
+    # Synthetic catalog used only with --demo.
+    return [
+        {"category": "Fast Food", "isVeganFriendly": False},
+        {"category": "Fast Food", "isGlutenFreeFriendly": True},
+        {"category": "Executive Lunch", "isLactoseFreeFriendly": True},
+    ]
+
+
 def make_handler(load):
     page = (HERE / "dashboard.html").read_bytes()
 
@@ -506,12 +597,14 @@ def main():
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
 
-    sample = (demo_events(), demo_reviews()) if args.demo else None
+    sample = (demo_events(), demo_reviews(), demo_restaurants()) if args.demo else None
     load = (lambda: sample) if args.demo else fetch_data
 
     url = f"http://localhost:{args.port}"
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(load))
     print(f"Uniandes Food dashboard en {url}  (Ctrl+C para salir)")
+    if args.demo:
+        print("DEMO: datos simulados, no datos reales de Firestore.")
     if not args.no_browser:
         webbrowser.open(url)
     try:
