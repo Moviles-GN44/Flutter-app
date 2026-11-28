@@ -52,7 +52,7 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final error = _viewModel.errorMessage;
+    final notice = _notice();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -61,19 +61,23 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
           'Reviews you wrote in Uniandes Food',
           style: AppText.caption,
         ),
-        if (error != null) ...[
+        if (notice != null) ...[
           const SizedBox(height: 12),
-          Text(error, style: AppText.caption),
+          _Notice(message: notice),
         ],
         const SizedBox(height: 16),
         _StatsRow(summary: summary ?? MyReviewsSummary.empty),
         const SizedBox(height: 16),
         if (summary == null || summary.isEmpty)
-          if (error == null)
+          if (_viewModel.errorMessage == null && !_viewModel.neverLoaded)
             const _EmptyState()
           else
             const SizedBox.shrink()
         else ...[
+          if (summary.pending > 0) ...[
+            _PendingNote(count: summary.pending),
+            const SizedBox(height: 12),
+          ],
           for (final review in summary.reviews) ...[
             _ReviewCard(review: review),
             const SizedBox(height: 12),
@@ -81,6 +85,20 @@ class _MyReviewsScreenState extends State<MyReviewsScreen> {
         ],
       ],
     );
+  }
+
+  String? _notice() {
+    if (_viewModel.errorMessage case final error?) return error;
+    if (_viewModel.neverLoaded) {
+      return 'Offline · connect once to load your reviews';
+    }
+    if (_viewModel.isOffline) {
+      return 'Offline · showing the reviews saved on this phone';
+    }
+    if (_viewModel.isShowingSavedData) {
+      return 'Back online · updating your reviews…';
+    }
+    return null;
   }
 }
 
@@ -268,6 +286,72 @@ class _SyncTag extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.waitMediumTint,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 18,
+              color: AppColors.waitMediumText,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: AppText.caption.copyWith(
+                  color: AppColors.waitMediumText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingNote extends StatelessWidget {
+  const _PendingNote({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final reviews = count == 1 ? '1 review is' : '$count reviews are';
+    return Row(
+      children: [
+        const Icon(
+          Icons.cloud_upload_outlined,
+          size: 16,
+          color: AppColors.textSecondary,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '$reviews saved on this phone and will be sent automatically '
+            'when you are back online.',
+            style: AppText.caption,
+          ),
+        ),
+      ],
     );
   }
 }
