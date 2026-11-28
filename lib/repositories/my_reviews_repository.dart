@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:uniandes_food/models/my_review.dart';
 import 'package:uniandes_food/repositories/my_reviews_store.dart';
@@ -12,9 +13,13 @@ typedef MyReviewsSnapshot = ({
 
 /// Reads the signed-in student's reviews for the My Reviews view.
 ///
+/// - Eventual connectivity: listens to Firestore with metadata changes, so a
+///   review written offline shows as pending and turns into sent by itself
+///   when it reaches the server.
 /// - Caching: restaurant names live in memory for [nameTtl].
-/// - Local storage: restaurant names and the last synced list are kept on the
-///   phone in SQLite (see [MyReviewsStore]).
+/// - Concurrency: missing names are requested in parallel with `Future.wait`,
+///   and the summary is built in a background isolate with `compute`.
+/// - Local storage: see [MyReviewsStore].
 class MyReviewsRepository {
   MyReviewsRepository({
     FirebaseFirestore? firestore,
@@ -39,7 +44,7 @@ class MyReviewsRepository {
 
   MyReviewsStore get store => _store;
 
-  /// The student's reviews, as plain maps.
+  /// The student's reviews, as plain maps that can be sent to an isolate.
   Stream<MyReviewsSnapshot> watch(String uid) {
     return _firestore
         .collection('reviews')
@@ -74,23 +79,24 @@ class MyReviewsRepository {
     missing = missing.difference(saved.keys.toSet());
     if (missing.isEmpty) return names;
 
-    final found = <String, String>{};
-    for (final id in missing) {
-      final entry = await _fetchName(id);
-      if (entry != null) found[entry.id] = entry.name;
-    }
+    // One request per restaurant, all at the same time.
+    final fetched = await Future.wait(missing.map(_fetchName));
+    final found = {
+      for (final entry in fetched)
+        if (entry != null) entry.id: entry.name,
+    };
     names.addAll(found);
     _remember(found);
     unawaited(_store.saveNames(found));
     return names;
   }
 
-  /// Builds the list and the totals shown in the view.
+  /// Builds the list and the totals off the UI thread.
   Future<MyReviewsSummary> summarize(
     List<Map<String, Object?>> rows,
     Map<String, String> names,
-  ) async {
-    return MyReviewsSummary.build((rows: rows, names: names));
+  ) {
+    return compute(MyReviewsSummary.build, (rows: rows, names: names));
   }
 
   void clearNameCache() => _names.clear();
